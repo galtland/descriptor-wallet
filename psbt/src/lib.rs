@@ -57,12 +57,17 @@ pub(crate) mod v0 {
         Input as InputV0, Output as OutputV0, PartiallySignedTransaction as PsbtV0,
     };
 }
+
+#[cfg(feature = "tapret")]
 pub use commit::{
-    PSBT_GLOBAL_LNPBP4_PROTOCOL_INFO, PSBT_IN_P2C_TWEAK, PSBT_IN_TAPRET_TWEAK, PSBT_LNPBP4_PREFIX,
+    PSBT_GLOBAL_LNPBP4_PROTOCOL_INFO, PSBT_IN_TAPRET_TWEAK, PSBT_LNPBP4_PREFIX,
     PSBT_OUT_LNPBP4_ENTROPY, PSBT_OUT_LNPBP4_MESSAGE, PSBT_OUT_LNPBP4_MIN_TREE_DEPTH,
     PSBT_OUT_TAPRET_COMMITMENT, PSBT_OUT_TAPRET_HOST, PSBT_OUT_TAPRET_PROOF, PSBT_P2C_PREFIX,
     PSBT_TAPRET_PREFIX,
 };
+
+pub use commit::PSBT_IN_P2C_TWEAK;
+
 pub use proprietary::{
     ProprietaryKeyDescriptor, ProprietaryKeyError, ProprietaryKeyLocation, ProprietaryKeyType,
 };
@@ -85,5 +90,7 @@ pub enum PsbtVersion {
 }
 
 impl Default for PsbtVersion {
-    fn default() -> Self { PsbtVersion::V2 }
+    fn default() -> Self {
+        PsbtVersion::V2
+    }
 }

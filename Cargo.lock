@@ -234,9 +234,8 @@ dependencies = [
 
 [[package]]
 name = "bitcoin_scripts"
-version = "0.9.0-alpha.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2de4929d6f40d03e9d70125f7f51ece75672257fa054c84dde20109195e297e1"
+version = "0.9.0-alpha.3"
+source = "git+https://github.com/galtland/bp-foundation?branch=compilation_fix#564b7e04637110cd7a2bd739f14267e88f37036f"
 dependencies = [
  "amplify",
  "bitcoin 0.29.2",
@@ -359,17 +358,6 @@ dependencies = [
  "atty",
  "lazy_static",
  "winapi",
-]
-
-[[package]]
-name = "commit_verify"
-version = "0.9.0-alpha.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd8bcf61fc592008bf2c04d4d9348a811503320d19a16f3f489f576f294316a8"
-dependencies = [
- "amplify",
- "bitcoin_hashes 0.11.0",
- "confined_encoding",
 ]
 
 [[package]]
@@ -825,7 +813,7 @@ dependencies = [
 
 [[package]]
 name = "psbt"
-version = "0.9.0-alpha.1"
+version = "0.9.0-alpha.2"
 dependencies = [
  "amplify",
  "bitcoin 0.29.2",
@@ -833,7 +821,7 @@ dependencies = [
  "bitcoin_hd",
  "bitcoin_onchain",
  "bitcoin_scripts",
- "commit_verify",
+ "confined_encoding",
  "descriptors",
  "miniscript",
  "serde",

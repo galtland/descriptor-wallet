@@ -16,11 +16,14 @@
 //! Supports Tapret, Opret, P2C and S2C commitments and LNPBP4 structures used
 //! by all of them.
 
+#[cfg(feature="lnpbp4")]
 mod lnpbp4;
 mod opret;
 mod p2c;
+#[cfg(feature="tapret")]
 mod tapret;
 
+#[cfg(feature="lnpbp4")]
 pub use lnpbp4::{
     Lnpbp4Info, Lnpbp4KeyError, ProprietaryKeyLnpbp4, PSBT_GLOBAL_LNPBP4_PROTOCOL_INFO,
     PSBT_LNPBP4_PREFIX, PSBT_OUT_LNPBP4_ENTROPY, PSBT_OUT_LNPBP4_MESSAGE,
@@ -31,6 +34,7 @@ pub use opret::{
     PSBT_OUT_OPRET_HOST,
 };
 pub use p2c::{PSBT_IN_P2C_TWEAK, PSBT_P2C_PREFIX};
+#[cfg(feature="tapret")]
 pub use tapret::{
     DfsPathEncodeError, ProprietaryKeyTapret, TapretKeyError, PSBT_IN_TAPRET_TWEAK,
     PSBT_OUT_TAPRET_COMMITMENT, PSBT_OUT_TAPRET_HOST, PSBT_OUT_TAPRET_PROOF, PSBT_TAPRET_PREFIX,
