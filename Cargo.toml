@@ -26,7 +26,7 @@ bitcoin_onchain = { version = "0.10.0", path = "./onchain" }
 descriptors = { version = "0.10.0", path = "./descriptors", default-features = false }
 psbt = { version = "0.10.0", path = "./psbt", default-features = false }
 slip132 = { version = "0.10.0", path = "./slip132" }
-miniscript_crate = { package = "miniscript", version = "9.0.1" }
+miniscript_crate = { package = "miniscript", version = "9.0.2" }
 chrono = "0.4.19"
 
 [package]
