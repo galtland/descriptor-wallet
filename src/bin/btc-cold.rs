@@ -32,12 +32,12 @@ use std::{fmt, fs, io};
 
 use amplify::hex::ToHex;
 use amplify::{IoError, Wrapper};
+use bitcoin::address;
+use bitcoin::bip32::{ChildNumber, Xpub};
 use bitcoin::consensus::Encodable;
 use bitcoin::psbt::serialize::Serialize;
 use bitcoin::psbt::PartiallySignedTransaction;
 use bitcoin::secp256k1::Secp256k1;
-use bitcoin::util::address;
-use bitcoin::util::bip32::{ChildNumber, ExtendedPubKey};
 use bitcoin::{consensus, Address, Network};
 use bitcoin_blockchain::locks::LockTime;
 use bitcoin_hd::DeriveError;
@@ -567,10 +567,12 @@ impl Args {
         Ok(())
     }
 
-    fn history(&self) -> Result<(), Error> { todo!() }
+    fn history(&self) -> Result<(), Error> {
+        todo!()
+    }
 
     fn info(&self, data: &str) -> Result<(), Error> {
-        let xpub = ExtendedPubKey::from_slip132_str(data)?;
+        let xpub = Xpub::from_slip132_str(data)?;
         println!();
         println!("{:-13} {}", "Fingerprint:", xpub.fingerprint());
         println!("{:-13} {}", "Identifier:", xpub.identifier());

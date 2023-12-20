@@ -13,11 +13,11 @@ use std::fmt::{self, Display, Formatter};
 use std::io::Write;
 use std::str::FromStr;
 
+use bitcoin::bip32;
+use bitcoin::bip32::{ChainCode, ChildNumber, DerivationPath, Fingerprint, Xpub};
 use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::{PublicKey, Secp256k1, VerifyOnly};
-use bitcoin::util::bip32;
-use bitcoin::util::bip32::{ChainCode, ChildNumber, DerivationPath, ExtendedPubKey, Fingerprint};
-use bitcoin::{secp256k1, XpubIdentifier};
+use bitcoin::{secp256k1, XKeyIdentifier};
 use slip132::{DefaultResolver, FromSlip132, KeyVersion};
 
 use crate::{DerivationStandard, HardenedIndex, SegmentIndexes, UnhardenedIndex};
@@ -89,7 +89,7 @@ pub enum NonStandardDerivation {
 
 /// Deterministic part of the extended public key descriptor
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
-#[derive(StrictEncode, StrictDecode)]
+// #[derive(StrictEncode, StrictDecode)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -103,11 +103,13 @@ pub struct XpubkeyCore {
 }
 
 impl Display for XpubkeyCore {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result { Display::fmt(&self.fingerprint(), f) }
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        Display::fmt(&self.fingerprint(), f)
+    }
 }
 
-impl From<ExtendedPubKey> for XpubkeyCore {
-    fn from(xpub: ExtendedPubKey) -> Self {
+impl From<Xpub> for XpubkeyCore {
+    fn from(xpub: Xpub) -> Self {
         XpubkeyCore {
             public_key: xpub.public_key,
             chain_code: xpub.chain_code,
@@ -116,13 +118,15 @@ impl From<ExtendedPubKey> for XpubkeyCore {
 }
 
 impl XpubkeyCore {
-    /// Computes [`XpubIdentifier`] of the key
-    pub fn identifier(&self) -> XpubIdentifier {
-        XpubIdentifier::hash(&self.public_key.serialize())
+    /// Computes [`XKeyIdentifier`] of the key
+    pub fn identifier(&self) -> XKeyIdentifier {
+        XKeyIdentifier::hash(&self.public_key.serialize())
     }
 
     /// Computes [`Fingerprint`] of the key
-    pub fn fingerprint(&self) -> Fingerprint { Fingerprint::from(&self.identifier()[0..4]) }
+    pub fn fingerprint(&self) -> Fingerprint {
+        Fingerprint::try_from(&self.identifier()[0..4]).expect("to be valid")
+    }
 }
 
 #[cfg(feature = "miniscript")]
@@ -140,7 +144,7 @@ impl XpubkeyCore {
         secp: &Secp256k1<VerifyOnly>,
         terminal: impl IntoIterator<Item = UnhardenedIndex>,
     ) -> PublicKey {
-        let xpub = ExtendedPubKey {
+        let xpub = Xpub {
             network: bitcoin::Network::Bitcoin,
             depth: 0,
             parent_fingerprint: zero!(),
@@ -202,7 +206,7 @@ where
     /// derivation standard, they do match.
     pub fn with(
         master_fingerprint: Option<Fingerprint>,
-        xpub: ExtendedPubKey,
+        xpub: Xpub,
         standard: Option<Standard>,
         slip: Option<KeyVersion>,
     ) -> Result<XpubOrigin<Standard>, XpubRequirementError> {
@@ -263,7 +267,7 @@ where
 
     pub(crate) fn with_unchecked(
         master_fingerprint: Option<Fingerprint>,
-        xpub: ExtendedPubKey,
+        xpub: Xpub,
         standard: Option<Standard>,
         slip: Option<KeyVersion>,
     ) -> XpubOrigin<Standard> {
@@ -303,7 +307,7 @@ where
     pub fn deduce(
         master_fingerprint: Option<Fingerprint>,
         source: &DerivationPath,
-        xpub: ExtendedPubKey,
+        xpub: Xpub,
         slip: Option<KeyVersion>,
     ) -> Result<Result<XpubOrigin<Standard>, XpubRequirementError>, NonStandardDerivation> {
         let standard = Standard::deduce(source);
@@ -366,9 +370,7 @@ where
 }
 
 /// Error parsing [`XpubDescriptor`] string representation
-#[derive(
-    Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Error, From
-)]
+#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(inner)]
 pub enum XpubParseError {
     /// BIP32-related error
@@ -397,7 +399,7 @@ where
         // TODO: Implement `[fp/derivation/path]xpub` processing
         // TODO: Implement `m=[fp]/derivation/path/account=[xpub]` processing
 
-        let xpub = ExtendedPubKey::from_str(s).or_else(|_| ExtendedPubKey::from_slip132_str(s))?;
+        let xpub = Xpub::from_str(s).or_else(|_| Xpub::from_slip132_str(s))?;
 
         let slip = KeyVersion::from_xkey_str(s).ok();
 
@@ -405,11 +407,11 @@ where
     }
 }
 
-impl<Standard> From<ExtendedPubKey> for XpubDescriptor<Standard>
+impl<Standard> From<Xpub> for XpubDescriptor<Standard>
 where
     Standard: DerivationStandard,
 {
-    fn from(xpub: ExtendedPubKey) -> Self {
+    fn from(xpub: Xpub) -> Self {
         XpubDescriptor {
             testnet: xpub.network != bitcoin::Network::Bitcoin,
             depth: xpub.depth,
@@ -424,12 +426,12 @@ where
     }
 }
 
-impl<Standard> From<&XpubDescriptor<Standard>> for ExtendedPubKey
+impl<Standard> From<&XpubDescriptor<Standard>> for Xpub
 where
     Standard: DerivationStandard,
 {
     fn from(xpub: &XpubDescriptor<Standard>) -> Self {
-        ExtendedPubKey {
+        Xpub {
             network: if xpub.testnet {
                 bitcoin::Network::Testnet
             } else {
@@ -444,11 +446,13 @@ where
     }
 }
 
-impl<Standard> From<XpubDescriptor<Standard>> for ExtendedPubKey
+impl<Standard> From<XpubDescriptor<Standard>> for Xpub
 where
     Standard: DerivationStandard,
 {
-    fn from(xpub: XpubDescriptor<Standard>) -> Self { ExtendedPubKey::from(&xpub) }
+    fn from(xpub: XpubDescriptor<Standard>) -> Self {
+        Xpub::from(&xpub)
+    }
 }
 
 impl<Standard> XpubDescriptor<Standard>
@@ -521,7 +525,7 @@ where
     /// derivation standard, they do match.
     pub fn with(
         master_fingerprint: Option<Fingerprint>,
-        xpub: ExtendedPubKey,
+        xpub: Xpub,
         testnet: bool,
         standard: Option<Standard>,
         slip: Option<KeyVersion>,
@@ -536,7 +540,7 @@ where
     #[doc(hidden)]
     pub fn with_unchecked(
         master_fingerprint: Option<Fingerprint>,
-        xpub: ExtendedPubKey,
+        xpub: Xpub,
         standard: Option<Standard>,
         slip: Option<KeyVersion>,
     ) -> XpubDescriptor<Standard> {
@@ -608,7 +612,7 @@ where
     pub fn deduce(
         master_fingerprint: Option<Fingerprint>,
         source: &DerivationPath,
-        xpub: ExtendedPubKey,
+        xpub: Xpub,
         slip: Option<KeyVersion>,
     ) -> Result<Result<XpubDescriptor<Standard>, XpubRequirementError>, NonStandardDerivation> {
         let mut xd = XpubDescriptor::from(xpub);
@@ -629,16 +633,18 @@ where
     Standard: DerivationStandard,
 {
     /// Computes identifier of the extended public key
-    pub fn identifier(&self) -> XpubIdentifier {
-        let mut engine = XpubIdentifier::engine();
+    pub fn identifier(&self) -> XKeyIdentifier {
+        let mut engine = XKeyIdentifier::engine();
         engine
             .write_all(&self.public_key.serialize())
             .expect("engines don't error");
-        XpubIdentifier::from_engine(engine)
+        XKeyIdentifier::from_engine(engine)
     }
 
     /// Computes fingerprint of the extended public key
-    pub fn fingerprint(&self) -> Fingerprint { Fingerprint::from(&self.identifier()[0..4]) }
+    pub fn fingerprint(&self) -> Fingerprint {
+        Fingerprint::try_from(&self.identifier()[0..4]).expect("to be valid")
+    }
 
     /// Converts to [`XpubOrigin`]
     pub fn to_origin(&self) -> XpubOrigin<Standard> {

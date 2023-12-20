@@ -11,16 +11,16 @@
 
 use std::collections::BTreeMap;
 
-use bitcoin::blockdata::transaction::NonStandardSighashType;
+use bitcoin::bip32::KeySource;
 use bitcoin::hashes::{hash160, ripemd160, sha256, sha256d};
 use bitcoin::psbt::PsbtSighashType;
-use bitcoin::util::bip32::KeySource;
-use bitcoin::util::sighash;
-use bitcoin::util::taproot::{ControlBlock, LeafVersion, TapBranchHash, TapLeafHash};
+use bitcoin::sighash::NonStandardSighashTypeError;
+use bitcoin::taproot::{ControlBlock, LeafVersion, TapLeafHash};
 use bitcoin::{
-    secp256k1, EcdsaSig, EcdsaSighashType, OutPoint, PublicKey, SchnorrSig, SchnorrSighashType,
-    Script, Transaction, TxIn, TxOut, Witness, XOnlyPublicKey,
+    secp256k1, OutPoint, PublicKey, ScriptBuf, TapNodeHash, TapSighashType, Transaction, TxIn,
+    TxOut, Witness, XOnlyPublicKey,
 };
+use bitcoin::{sighash, EcdsaSighashType};
 use bitcoin_blockchain::locks::{LockHeight, LockTime, LockTimestamp, SeqNo};
 use bitcoin_scripts::{RedeemScript, SigScript, WitnessScript};
 #[cfg(feature = "serde")]
@@ -31,7 +31,7 @@ use crate::{raw, InputMatchError, TxinError};
 
 // TODO: Do manual serde implementation to check the deserialized values
 #[derive(Clone, Eq, PartialEq, Debug, Default)]
-#[derive(StrictEncode, StrictDecode)]
+// #[derive(StrictEncode, StrictDecode)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -70,7 +70,7 @@ pub struct Input {
     /// A map from public keys to their corresponding signature as would be
     /// pushed to the stack from a scriptSig or witness for a non-taproot
     /// inputs.
-    pub partial_sigs: BTreeMap<PublicKey, EcdsaSig>,
+    pub partial_sigs: BTreeMap<PublicKey, bitcoin::ecdsa::Signature>,
 
     /// The sighash type to be used for this input. Signatures for this input
     /// must use the sighash type.
@@ -114,15 +114,15 @@ pub struct Input {
     pub hash256_preimages: BTreeMap<sha256d::Hash, Vec<u8>>,
 
     /// Serialized schnorr signature with sighash type for key spend.
-    pub tap_key_sig: Option<SchnorrSig>,
+    pub tap_key_sig: Option<bitcoin::taproot::Signature>,
 
     /// Map of `xonlypubkey|leafhash` with signature.
     #[cfg_attr(feature = "serde", serde(with = "As::<BTreeMap<Same, Same>>"))]
-    pub tap_script_sigs: BTreeMap<(XOnlyPublicKey, TapLeafHash), SchnorrSig>,
+    pub tap_script_sigs: BTreeMap<(XOnlyPublicKey, TapLeafHash), TapSighashType>,
 
     /// Map of Control blocks to Script version pair.
     #[cfg_attr(feature = "serde", serde(with = "As::<BTreeMap<Same, Same>>"))]
-    pub tap_scripts: BTreeMap<ControlBlock, (Script, LeafVersion)>,
+    pub tap_scripts: BTreeMap<ControlBlock, (ScriptBuf, LeafVersion)>,
 
     /// Map of tap root x only keys to origin info and leaf hashes contained in
     /// it.
@@ -136,7 +136,7 @@ pub struct Input {
     pub tap_internal_key: Option<XOnlyPublicKey>,
 
     /// Taproot Merkle root.
-    pub tap_merkle_root: Option<TapBranchHash>,
+    pub tap_merkle_root: Option<TapNodeHash>,
 
     /// Proprietary key-value pairs for this input.
     #[cfg_attr(feature = "serde", serde(with = "As::<BTreeMap<Same, Hex>>"))]
@@ -209,7 +209,9 @@ impl Input {
     }
 
     #[inline]
-    pub fn index(&self) -> usize { self.index }
+    pub fn index(&self) -> usize {
+        self.index
+    }
 
     #[inline]
     pub fn locktime(&self) -> Option<LockTime> {
@@ -225,23 +227,23 @@ impl Input {
     ///
     /// If the `sighash_type` field is set to a non-standard ECDSA sighash
     /// value.
-    pub fn ecdsa_hash_ty(&self) -> Result<EcdsaSighashType, NonStandardSighashType> {
+    pub fn ecdsa_hash_ty(&self) -> Result<EcdsaSighashType, NonStandardSighashTypeError> {
         self.sighash_type
             .map(|sighash_type| sighash_type.ecdsa_hash_ty())
             .unwrap_or(Ok(EcdsaSighashType::All))
     }
 
-    /// Obtains the [`SchnorrSighashType`] for this input if one is specified.
+    /// Obtains the [`TapSighashType`] for this input if one is specified.
     /// If no sighash type is specified, returns
-    /// [`SchnorrSighashType::Default`].
+    /// [`TapSighashType::Default`].
     ///
     /// # Errors
     ///
     /// If the `sighash_type` field is set to a invalid Schnorr sighash value.
-    pub fn schnorr_hash_ty(&self) -> Result<SchnorrSighashType, sighash::Error> {
+    pub fn schnorr_hash_ty(&self) -> Result<TapSighashType, sighash::Error> {
         self.sighash_type
-            .map(|sighash_type| sighash_type.schnorr_hash_ty())
-            .unwrap_or(Ok(SchnorrSighashType::Default))
+            .map(|sighash_type| sighash_type.taproot_hash_ty())
+            .unwrap_or(Ok(TapSighashType::Default))
     }
 
     /// Returns [`TxOut`] reference returned by resolver, if any, or reports

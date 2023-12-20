@@ -13,21 +13,20 @@ use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
-use amplify::hex::{FromHex, ToHex};
-use bitcoin::util::bip32::{ExtendedPubKey, KeySource};
+use amplify::hex::FromHex;
+use bitcoin::bip32::{KeySource, Xpub};
 use bitcoin::{consensus, Transaction, Txid};
 use bitcoin_blockchain::locks::LockTime;
 #[cfg(feature = "serde")]
 use serde_with::{hex::Hex, As, Same};
 
-use crate::serialize::{Deserialize, Serialize};
 use crate::v0::PsbtV0;
 use crate::{raw, Error, FeeError, Input, Output, PsbtVersion, TxError};
 
 // TODO: Do manual serde and strict encoding implementation to check the
 //       deserialized values
 #[derive(Clone, Eq, PartialEq, Debug, Default)]
-#[derive(StrictEncode, StrictDecode)]
+// #[derive(StrictEncode, StrictDecode)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -51,7 +50,7 @@ pub struct Psbt {
 
     /// A global map from extended public keys to the used key fingerprint and
     /// derivation path as defined by BIP 32
-    pub xpub: BTreeMap<ExtendedPubKey, KeySource>,
+    pub xpub: BTreeMap<Xpub, KeySource>,
 
     /// Global proprietary key-value pairs.
     #[cfg_attr(feature = "serde", serde(with = "As::<BTreeMap<Same, Hex>>"))]
@@ -81,8 +80,9 @@ impl Psbt {
 
         let i32_version = tx.version;
         let tx_version = i32_version
+            .0
             .try_into()
-            .map_err(|_| TxError::InvalidTxVersion(i32_version))?;
+            .map_err(|_| TxError::InvalidTxVersion(i32_version.0))?;
 
         let fallback_locktime = match tx.lock_time.0 {
             0 => None,
@@ -129,7 +129,9 @@ impl Psbt {
         }
     }
 
-    pub(crate) fn tx_version(&self) -> i32 { i32::from_be_bytes(self.tx_version.to_be_bytes()) }
+    pub(crate) fn tx_version(&self) -> i32 {
+        i32::from_be_bytes(self.tx_version.to_be_bytes())
+    }
 
     /// Returns fee for a transaction, or returns error reporting resolver
     /// problem or wrong transaction structure
@@ -151,13 +153,15 @@ impl Psbt {
     /// Returns transaction ID for an unsigned transaction. For SegWit
     /// transactions this is equal to the signed transaction id.
     #[inline]
-    pub fn to_txid(&self) -> Txid { self.to_unsigned_tx().txid() }
+    pub fn to_txid(&self) -> Txid {
+        self.to_unsigned_tx().txid()
+    }
 
     /// Constructs transaction with empty `scriptSig` and `witness`
     pub fn to_unsigned_tx(&self) -> Transaction {
         let version = self.tx_version();
 
-        let lock_time = bitcoin::PackedLockTime(self.lock_time().into_consensus());
+        let lock_time = LockTime::from_consensus(self.lock_time().into_consensus());
 
         let tx_inputs = self.inputs.iter().map(Input::to_unsigned_txin).collect();
         let tx_outputs = self.outputs.iter().map(Output::to_txout).collect();
@@ -174,7 +178,7 @@ impl Psbt {
     pub fn into_unsigned_tx(self) -> Transaction {
         let version = self.tx_version();
 
-        let lock_time = bitcoin::PackedLockTime(self.lock_time().into_consensus());
+        let lock_time = LockTime::from_consensus(self.lock_time().into_consensus());
 
         let tx_inputs = self.inputs.iter().map(Input::to_unsigned_txin).collect();
         let tx_outputs = self.outputs.into_iter().map(Output::into_txout).collect();
@@ -210,6 +214,13 @@ impl Psbt {
         let mut first = PsbtV0::from(self);
         first.combine(other.into())?;
         Ok(first.into())
+    }
+
+    pub fn serialize(&self) -> Vec<u8> {
+        consensus::encode::serialize::<PsbtV0>(&self.clone().into())
+    }
+    pub fn deserialize(bytes: &[u8]) -> Result<Self, consensus::encode::Error> {
+        consensus::deserialize::<PsbtV0>(bytes).map(Psbt::from)
     }
 }
 
@@ -257,7 +268,7 @@ impl From<PsbtV0> for Psbt {
 impl From<Psbt> for PsbtV0 {
     fn from(psbt: Psbt) -> Self {
         let version = psbt.tx_version();
-        let lock_time = bitcoin::PackedLockTime(psbt.lock_time().into_consensus());
+        let lock_time = LockTime::from_consensus(psbt.lock_time().into_consensus());
 
         let (v0_inputs, tx_inputs) = psbt.inputs.into_iter().map(Input::split).unzip();
         let (v0_outputs, tx_outputs) = psbt.outputs.into_iter().map(Output::split).unzip();
@@ -283,15 +294,17 @@ impl From<Psbt> for PsbtV0 {
 
 // TODO: Implement own PSBT BIP174 serialization trait and its own custom error
 //       type handling different PSBT versions.
-impl Serialize for Psbt {
-    fn serialize(&self) -> Vec<u8> { consensus::encode::serialize::<PsbtV0>(&self.clone().into()) }
-}
+// impl Serialize for Psbt {
+//     fn serialize(&self) -> Vec<u8> {
+//         consensus::encode::serialize::<PsbtV0>(&self.clone().into())
+//     }
+// }
 
-impl Deserialize for Psbt {
-    fn deserialize(bytes: &[u8]) -> Result<Self, consensus::encode::Error> {
-        consensus::deserialize::<PsbtV0>(bytes).map(Psbt::from)
-    }
-}
+// impl Deserialize for Psbt {
+//     fn deserialize(bytes: &[u8]) -> Result<Self, consensus::encode::Error> {
+//         consensus::deserialize::<PsbtV0>(bytes).map(Psbt::from)
+//     }
+// }
 
 impl Display for Psbt {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

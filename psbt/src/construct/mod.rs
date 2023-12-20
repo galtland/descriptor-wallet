@@ -16,9 +16,9 @@
 
 use std::collections::BTreeSet;
 
+use bitcoin::psbt::TapTree;
 use bitcoin::secp256k1::SECP256K1;
-use bitcoin::util::psbt::TapTree;
-use bitcoin::util::taproot::{LeafVersion, TapLeafHash, TaprootBuilder, TaprootBuilderError};
+use bitcoin::taproot::{LeafVersion, TapLeafHash, TaprootBuilder, TaprootBuilderError};
 use bitcoin::{Script, Txid, XOnlyPublicKey};
 use bitcoin_hd::{DerivationAccount, DeriveError, SegmentIndexes, UnhardenedIndex};
 use bitcoin_onchain::{ResolveTx, TxResolverError};

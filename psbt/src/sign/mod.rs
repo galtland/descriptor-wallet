@@ -16,8 +16,8 @@
 
 // TODO: Add Hash secret provider and hash secret satisfaction
 
+use bitcoin::bip32::{DerivationPath, Fingerprint};
 use bitcoin::secp256k1::{KeyPair, PublicKey, Secp256k1, SecretKey, Signing, XOnlyPublicKey};
-use bitcoin::util::bip32::{DerivationPath, Fingerprint};
 
 mod inmem;
 #[cfg(feature = "miniscript")]

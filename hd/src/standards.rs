@@ -14,7 +14,7 @@
 use core::convert::TryInto;
 use core::str::FromStr;
 
-use bitcoin::util::bip32::{ChildNumber, DerivationPath};
+use bitcoin::bip32::{ChildNumber, DerivationPath};
 use bitcoin::Network;
 #[cfg(feature = "miniscript")]
 pub use miniscript::descriptor::DescriptorType;
@@ -93,7 +93,9 @@ impl DerivationBlockchain {
     }
 
     /// Tests whether given derivation blockchain is a testnet.
-    pub fn is_testnet(self) -> bool { self == DerivationBlockchain::Testnet }
+    pub fn is_testnet(self) -> bool {
+        self == DerivationBlockchain::Testnet
+    }
 
     /// Returns derivation path segment child number corresponding to the given
     /// blockchain from LNPBP-43 standard
@@ -129,7 +131,7 @@ impl FromStr for DerivationBlockchain {
 
 /// Specific derivation scheme after BIP-43 standards
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
-#[derive(StrictEncode, StrictDecode)]
+// #[derive(StrictEncode, StrictDecode)]
 #[cfg_attr(feature = "clap", derive(ArgEnum))]
 #[cfg_attr(
     feature = "serde",
@@ -238,24 +240,40 @@ impl FromStr for Bip43 {
 
 impl Bip43 {
     /// Constructs derivation standard corresponding to a single-sig P2PKH.
-    pub fn singlesig_pkh() -> Bip43 { Bip43::Bip44 }
+    pub fn singlesig_pkh() -> Bip43 {
+        Bip43::Bip44
+    }
     /// Constructs derivation standard corresponding to a single-sig
     /// P2WPKH-in-P2SH.
-    pub fn singlesig_nested0() -> Bip43 { Bip43::Bip49 }
+    pub fn singlesig_nested0() -> Bip43 {
+        Bip43::Bip49
+    }
     /// Constructs derivation standard corresponding to a single-sig P2WPKH.
-    pub fn singlesig_segwit0() -> Bip43 { Bip43::Bip84 }
+    pub fn singlesig_segwit0() -> Bip43 {
+        Bip43::Bip84
+    }
     /// Constructs derivation standard corresponding to a single-sig P2TR.
-    pub fn singlesig_taproot() -> Bip43 { Bip43::Bip86 }
+    pub fn singlesig_taproot() -> Bip43 {
+        Bip43::Bip86
+    }
     /// Constructs derivation standard corresponding to a multi-sig P2SH BIP45.
-    pub fn multisig_ordered_sh() -> Bip43 { Bip43::Bip45 }
+    pub fn multisig_ordered_sh() -> Bip43 {
+        Bip43::Bip45
+    }
     /// Constructs derivation standard corresponding to a multi-sig sorted
     /// P2WSH-in-P2SH.
-    pub fn multisig_nested0() -> Bip43 { Bip43::Bip48Nested }
+    pub fn multisig_nested0() -> Bip43 {
+        Bip43::Bip48Nested
+    }
     /// Constructs derivation standard corresponding to a multi-sig sorted
     /// P2WSH.
-    pub fn multisig_segwit0() -> Bip43 { Bip43::Bip48Native }
+    pub fn multisig_segwit0() -> Bip43 {
+        Bip43::Bip48Native
+    }
     /// Constructs derivation standard corresponding to a multi-sig BIP87.
-    pub fn multisig_descriptor() -> Bip43 { Bip43::Bip87 }
+    pub fn multisig_descriptor() -> Bip43 {
+        Bip43::Bip87
+    }
 }
 
 /// Methods for derivation standard enumeration types.

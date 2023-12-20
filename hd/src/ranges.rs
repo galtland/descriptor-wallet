@@ -12,13 +12,12 @@
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::fmt::{self, Display, Formatter};
-use std::io;
 use std::ops::RangeInclusive;
 use std::str::FromStr;
 
 use amplify::Wrapper;
-use bitcoin::util::bip32;
-use strict_encoding::{self, StrictDecode, StrictEncode};
+use bitcoin::bip32;
+// use strict_encoding::{self, StrictDecode, StrictEncode};
 
 use crate::SegmentIndexes;
 
@@ -78,11 +77,15 @@ where
     /// present in the list. Removes only full ranges and not
     /// partially-intersected range.
     #[inline]
-    pub fn remove(&mut self, range: &IndexRange<Index>) -> bool { self.0.remove(range) }
+    pub fn remove(&mut self, range: &IndexRange<Index>) -> bool {
+        self.0.remove(range)
+    }
 
     /// Counts number of disjoint ranges withing the list
     #[inline]
-    pub fn range_count(&self) -> usize { self.0.len() }
+    pub fn range_count(&self) -> usize {
+        self.0.len()
+    }
 
     /// Returns the first range from the list of ranges.
     #[inline]
@@ -110,19 +113,29 @@ where
     Index: SegmentIndexes,
 {
     #[inline]
-    fn zero() -> Self { Self(bset![IndexRange::zero()]) }
+    fn zero() -> Self {
+        Self(bset![IndexRange::zero()])
+    }
 
     #[inline]
-    fn one() -> Self { Self(bset![IndexRange::one()]) }
+    fn one() -> Self {
+        Self(bset![IndexRange::one()])
+    }
 
     #[inline]
-    fn largest() -> Self { Self(bset![IndexRange::largest()]) }
+    fn largest() -> Self {
+        Self(bset![IndexRange::largest()])
+    }
 
     #[inline]
-    fn count(&self) -> usize { self.0.iter().map(IndexRange::count).sum() }
+    fn count(&self) -> usize {
+        self.0.iter().map(IndexRange::count).sum()
+    }
 
     #[inline]
-    fn contains(&self, index: u32) -> bool { self.0.iter().any(|i| i.contains(index)) }
+    fn contains(&self, index: u32) -> bool {
+        self.0.iter().any(|i| i.contains(index))
+    }
 
     #[inline]
     fn from_index(index: impl Into<u32>) -> Result<Self, bip32::Error> {
@@ -130,10 +143,14 @@ where
     }
 
     #[inline]
-    fn first_index(&self) -> u32 { self.first_range().first_index() }
+    fn first_index(&self) -> u32 {
+        self.first_range().first_index()
+    }
 
     #[inline]
-    fn last_index(&self) -> u32 { self.last_range().last_index() }
+    fn last_index(&self) -> u32 {
+        self.last_range().last_index()
+    }
 
     #[inline]
     fn from_derivation_value(value: u32) -> Result<Self, bip32::Error> {
@@ -141,57 +158,69 @@ where
     }
 
     #[inline]
-    fn first_derivation_value(&self) -> u32 { self.first_range().first_derivation_value() }
+    fn first_derivation_value(&self) -> u32 {
+        self.first_range().first_derivation_value()
+    }
 
     #[inline]
-    fn last_derivation_value(&self) -> u32 { self.last_range().last_derivation_value() }
+    fn last_derivation_value(&self) -> u32 {
+        self.last_range().last_derivation_value()
+    }
 
     #[inline]
-    fn checked_add_assign(&mut self, _: impl Into<u32>) -> Option<u32> { None }
+    fn checked_add_assign(&mut self, _: impl Into<u32>) -> Option<u32> {
+        None
+    }
 
     #[inline]
-    fn checked_sub_assign(&mut self, _: impl Into<u32>) -> Option<u32> { None }
+    fn checked_sub_assign(&mut self, _: impl Into<u32>) -> Option<u32> {
+        None
+    }
 
     #[inline]
-    fn is_hardened(&self) -> bool { self.first_range().is_hardened() }
-}
-
-impl<Index> StrictEncode for IndexRangeList<Index>
-where
-    Index: SegmentIndexes + StrictEncode,
-    BTreeSet<IndexRange<Index>>: StrictEncode,
-{
-    #[inline]
-    fn strict_encode<E: io::Write>(&self, e: E) -> Result<usize, strict_encoding::Error> {
-        self.0.strict_encode(e)
+    fn is_hardened(&self) -> bool {
+        self.first_range().is_hardened()
     }
 }
 
-impl<Index> StrictDecode for IndexRangeList<Index>
-where
-    Index: SegmentIndexes + StrictDecode,
-    BTreeSet<IndexRange<Index>>: StrictDecode,
-{
-    fn strict_decode<D: io::Read>(d: D) -> Result<Self, strict_encoding::Error> {
-        let set = BTreeSet::<IndexRange<Index>>::strict_decode(d)?;
-        if set.is_empty() {
-            return Err(strict_encoding::Error::DataIntegrityError(s!(
-                "IndexRangeList when deserialized must has at least one element"
-            )));
-        }
-        Self::with(set).map_err(|_| {
-            strict_encoding::Error::DataIntegrityError(s!(
-                "IndexRangeList elements must be disjoint ranges"
-            ))
-        })
-    }
-}
+// impl<Index> StrictEncode for IndexRangeList<Index>
+// where
+//     Index: SegmentIndexes + StrictEncode,
+//     BTreeSet<IndexRange<Index>>: StrictEncode,
+// {
+//     #[inline]
+//     fn strict_encode<E: io::Write>(&self, e: E) -> Result<usize, strict_encoding::Error> {
+//         self.0.strict_encode(e)
+//     }
+// }
+
+// impl<Index> StrictDecode for IndexRangeList<Index>
+// where
+//     Index: SegmentIndexes + StrictDecode,
+//     BTreeSet<IndexRange<Index>>: StrictDecode,
+// {
+//     fn strict_decode<D: io::Read>(d: D) -> Result<Self, strict_encoding::Error> {
+//         let set = BTreeSet::<IndexRange<Index>>::strict_decode(d)?;
+//         if set.is_empty() {
+//             return Err(strict_encoding::Error::DataIntegrityError(s!(
+//                 "IndexRangeList when deserialized must has at least one element"
+//             )));
+//         }
+//         Self::with(set).map_err(|_| {
+//             strict_encoding::Error::DataIntegrityError(s!(
+//                 "IndexRangeList elements must be disjoint ranges"
+//             ))
+//         })
+//     }
+// }
 
 impl<Index> From<IndexRange<Index>> for IndexRangeList<Index>
 where
     Index: SegmentIndexes,
 {
-    fn from(range: IndexRange<Index>) -> Self { Self(bset![range]) }
+    fn from(range: IndexRange<Index>) -> Self {
+        Self(bset![range])
+    }
 }
 
 impl<Index> Display for IndexRangeList<Index>
@@ -328,13 +357,19 @@ where
     Index: SegmentIndexes,
 {
     #[inline]
-    fn zero() -> Self { IndexRange(Index::zero()..=Index::zero()) }
+    fn zero() -> Self {
+        IndexRange(Index::zero()..=Index::zero())
+    }
 
     #[inline]
-    fn one() -> Self { IndexRange(Index::one()..=Index::one()) }
+    fn one() -> Self {
+        IndexRange(Index::one()..=Index::one())
+    }
 
     #[inline]
-    fn largest() -> Self { IndexRange(Index::largest()..=Index::largest()) }
+    fn largest() -> Self {
+        IndexRange(Index::largest()..=Index::largest())
+    }
 
     #[inline]
     fn count(&self) -> usize {
@@ -355,10 +390,14 @@ where
     }
 
     #[inline]
-    fn first_index(&self) -> u32 { self.0.start().first_index() }
+    fn first_index(&self) -> u32 {
+        self.0.start().first_index()
+    }
 
     #[inline]
-    fn last_index(&self) -> u32 { self.0.end().last_index() }
+    fn last_index(&self) -> u32 {
+        self.0.end().last_index()
+    }
 
     #[inline]
     fn from_derivation_value(value: u32) -> Result<Self, bip32::Error> {
@@ -368,19 +407,29 @@ where
     }
 
     #[inline]
-    fn first_derivation_value(&self) -> u32 { self.0.start().first_derivation_value() }
+    fn first_derivation_value(&self) -> u32 {
+        self.0.start().first_derivation_value()
+    }
 
     #[inline]
-    fn last_derivation_value(&self) -> u32 { self.0.end().last_derivation_value() }
+    fn last_derivation_value(&self) -> u32 {
+        self.0.end().last_derivation_value()
+    }
 
     #[inline]
-    fn checked_add_assign(&mut self, _: impl Into<u32>) -> Option<u32> { None }
+    fn checked_add_assign(&mut self, _: impl Into<u32>) -> Option<u32> {
+        None
+    }
 
     #[inline]
-    fn checked_sub_assign(&mut self, _: impl Into<u32>) -> Option<u32> { None }
+    fn checked_sub_assign(&mut self, _: impl Into<u32>) -> Option<u32> {
+        None
+    }
 
     #[inline]
-    fn is_hardened(&self) -> bool { self.0.start().is_hardened() }
+    fn is_hardened(&self) -> bool {
+        self.0.start().is_hardened()
+    }
 }
 
 impl<Index> Display for IndexRange<Index>
@@ -425,23 +474,23 @@ where
     }
 }
 
-impl<Index> StrictEncode for IndexRange<Index>
-where
-    Index: SegmentIndexes + StrictEncode,
-{
-    fn strict_encode<E: io::Write>(&self, mut e: E) -> Result<usize, strict_encoding::Error> {
-        Ok(strict_encode_list!(e; self.first_index(), self.last_index()))
-    }
-}
+// impl<Index> StrictEncode for IndexRange<Index>
+// where
+//     Index: SegmentIndexes + StrictEncode,
+// {
+//     fn strict_encode<E: io::Write>(&self, mut e: E) -> Result<usize, strict_encoding::Error> {
+//         Ok(strict_encode_list!(e; self.first_index(), self.last_index()))
+//     }
+// }
 
-impl<Index> StrictDecode for IndexRange<Index>
-where
-    Index: SegmentIndexes + StrictDecode,
-{
-    fn strict_decode<D: io::Read>(mut d: D) -> Result<Self, strict_encoding::Error> {
-        Ok(Self::from_inner(RangeInclusive::new(
-            Index::strict_decode(&mut d)?,
-            Index::strict_decode(&mut d)?,
-        )))
-    }
-}
+// impl<Index> StrictDecode for IndexRange<Index>
+// where
+//     Index: SegmentIndexes + StrictDecode,
+// {
+//     fn strict_decode<D: io::Read>(mut d: D) -> Result<Self, strict_encoding::Error> {
+//         Ok(Self::from_inner(RangeInclusive::new(
+//             Index::strict_decode(&mut d)?,
+//             Index::strict_decode(&mut d)?,
+//         )))
+//     }
+// }

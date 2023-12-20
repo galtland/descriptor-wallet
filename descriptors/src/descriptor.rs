@@ -14,10 +14,10 @@ use std::str::FromStr;
 
 use amplify::Wrapper;
 use bitcoin::hashes::Hash;
-use bitcoin::schnorr::{TweakedPublicKey, UntweakedPublicKey};
+use bitcoin::key::{TweakedPublicKey, UntweakedPublicKey};
 use bitcoin::secp256k1::{self, Secp256k1, Verification};
-use bitcoin::util::address::WitnessVersion;
-use bitcoin::util::taproot::TapBranchHash;
+use bitcoin::taproot::TapNodeHash;
+use bitcoin::ScriptBuf;
 use bitcoin::{PubkeyHash, Script, ScriptHash, WPubkeyHash, WScriptHash, XOnlyPublicKey};
 use bitcoin_hd::Bip43;
 #[cfg(not(feature = "miniscript"))]
@@ -32,7 +32,7 @@ use miniscript::policy::compiler::CompilerError;
 use miniscript::{Descriptor, MiniscriptKey, Terminal};
 
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
-#[derive(StrictEncode, StrictDecode)]
+// #[derive(StrictEncode, StrictDecode)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -64,7 +64,9 @@ impl From<&DescriptorType> for DescriptorClass {
 }
 
 impl From<DescriptorType> for DescriptorClass {
-    fn from(ty: DescriptorType) -> Self { DescriptorClass::from(&ty) }
+    fn from(ty: DescriptorType) -> Self {
+        DescriptorClass::from(&ty)
+    }
 }
 
 impl DescriptorClass {
@@ -97,7 +99,7 @@ impl DescriptorClass {
 #[derive(
     Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, Display
 )]
-#[derive(StrictEncode, StrictDecode)]
+// #[derive(StrictEncode, StrictDecode)]
 #[repr(u8)]
 pub enum SpkClass {
     #[display("bare")]
@@ -203,7 +205,7 @@ impl FromStr for SpkClass {
     serde(crate = "serde_crate")
 )]
 #[derive(Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
-#[derive(StrictEncode, StrictDecode)]
+// #[derive(StrictEncode, StrictDecode)]
 #[repr(u8)]
 pub enum CompositeDescrType {
     #[display("bare")]
@@ -256,10 +258,14 @@ impl CompositeDescrType {
     }
 
     #[inline]
-    pub fn is_segwit(self) -> bool { self.inner_category() == SpkClass::SegWit }
+    pub fn is_segwit(self) -> bool {
+        self.inner_category() == SpkClass::SegWit
+    }
 
     #[inline]
-    pub fn is_taproot(self) -> bool { self == CompositeDescrType::Tr }
+    pub fn is_taproot(self) -> bool {
+        self == CompositeDescrType::Tr
+    }
 
     #[inline]
     pub fn has_redeem_script(self) -> bool {
@@ -328,7 +334,7 @@ impl FromStr for CompositeDescrType {
     serde(crate = "serde_crate")
 )]
 #[derive(Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
-#[derive(StrictEncode, StrictDecode)]
+// #[derive(StrictEncode, StrictDecode)]
 #[repr(u8)]
 pub enum OuterDescrType {
     #[display("bare")]
@@ -385,7 +391,9 @@ impl<Pk> From<&Descriptor<Pk>> for OuterDescrType
 where
     Pk: MiniscriptKey,
 {
-    fn from(descriptor: &Descriptor<Pk>) -> Self { CompositeDescrType::from(descriptor).into() }
+    fn from(descriptor: &Descriptor<Pk>) -> Self {
+        CompositeDescrType::from(descriptor).into()
+    }
 }
 
 impl FromStr for OuterDescrType {
@@ -411,7 +419,7 @@ impl FromStr for OuterDescrType {
     serde(crate = "serde_crate")
 )]
 #[derive(Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
-#[derive(StrictEncode, StrictDecode)]
+// #[derive(StrictEncode, StrictDecode)]
 #[repr(u8)]
 pub enum InnerDescrType {
     #[display("bare")]
@@ -468,7 +476,9 @@ impl<Pk> From<&Descriptor<Pk>> for InnerDescrType
 where
     Pk: MiniscriptKey,
 {
-    fn from(descriptor: &Descriptor<Pk>) -> Self { CompositeDescrType::from(descriptor).into() }
+    fn from(descriptor: &Descriptor<Pk>) -> Self {
+        CompositeDescrType::from(descriptor).into()
+    }
 }
 
 impl FromStr for InnerDescrType {
@@ -494,7 +504,7 @@ impl FromStr for InnerDescrType {
     serde(crate = "serde_crate")
 )]
 #[derive(Clone, Copy, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default)]
-#[derive(StrictEncode, StrictDecode)]
+// #[derive(StrictEncode, StrictDecode)]
 #[repr(C)]
 pub struct DescrVariants {
     pub bare: bool,
@@ -566,7 +576,7 @@ impl DescrVariants {
 }
 
 #[derive(Clone, PartialOrd, Ord, PartialEq, Eq, Hash, Debug, Display)]
-#[derive(StrictEncode, StrictDecode)]
+// #[derive(StrictEncode, StrictDecode)]
 #[non_exhaustive]
 pub enum ScriptPubkeyDescr {
     #[display("bare({0})", alt = "bare({0:#})")]
@@ -599,7 +609,7 @@ impl FromStr for ScriptPubkeyDescr {
         if s.starts_with("bare(") {
             let inner = s.trim_start_matches("bare(");
             Ok(ScriptPubkeyDescr::Bare(
-                Script::from_str(inner)
+                ScriptBuf::from_str(inner)
                     .map_err(|_| Error::CantParseDescriptor)?
                     .into(),
             ))
@@ -648,7 +658,7 @@ impl FromStr for ScriptPubkeyDescr {
 #[display(doc_comments)]
 pub enum UnsupportedScriptPubkey {
     /// public key in `scriptPubkey` does not belong to Secp256k1 curve
-    #[from(bitcoin::util::key::Error)]
+    #[from(bitcoin::key::Error)]
     #[from(secp256k1::Error)]
     WrongPubkeyValue,
 
@@ -675,17 +685,23 @@ impl TryFrom<PubkeyScript> for ScriptPubkeyDescr {
             (spk, _) if spk.is_p2pkh() => {
                 let mut hash_inner = [0u8; 20];
                 hash_inner.copy_from_slice(&bytes[3..23]);
-                Ok(ScriptPubkeyDescr::Pkh(PubkeyHash::from_inner(hash_inner)))
+                Ok(ScriptPubkeyDescr::Pkh(PubkeyHash::from_byte_array(
+                    hash_inner,
+                )))
             }
             (spk, _) if spk.is_v0_p2wpkh() => {
                 let mut hash_inner = [0u8; 20];
                 hash_inner.copy_from_slice(&bytes[2..]);
-                Ok(ScriptPubkeyDescr::Wpkh(WPubkeyHash::from_inner(hash_inner)))
+                Ok(ScriptPubkeyDescr::Wpkh(WPubkeyHash::from_byte_array(
+                    hash_inner,
+                )))
             }
             (spk, _) if spk.is_v0_p2wsh() => {
                 let mut hash_inner = [0u8; 32];
                 hash_inner.copy_from_slice(&bytes[2..]);
-                Ok(ScriptPubkeyDescr::Wsh(WScriptHash::from_inner(hash_inner)))
+                Ok(ScriptPubkeyDescr::Wsh(WScriptHash::from_byte_array(
+                    hash_inner,
+                )))
             }
             (spk, _) if spk.is_v1_p2tr() => Ok(ScriptPubkeyDescr::Tr(
                 TweakedPublicKey::dangerous_assume_tweaked(XOnlyPublicKey::from_slice(
@@ -695,7 +711,9 @@ impl TryFrom<PubkeyScript> for ScriptPubkeyDescr {
             (spk, _) if spk.is_p2sh() => {
                 let mut hash_inner = [0u8; 20];
                 hash_inner.copy_from_slice(&bytes[2..22]);
-                Ok(ScriptPubkeyDescr::Sh(ScriptHash::from_inner(hash_inner)))
+                Ok(ScriptPubkeyDescr::Sh(ScriptHash::from_byte_array(
+                    hash_inner,
+                )))
             }
             (_, Some(WitnessVersion::V1)) => Err(UnsupportedScriptPubkey::NonTaprootV1),
             (_, Some(version)) => Err(UnsupportedScriptPubkey::UnsupportedWitnessVersion(version)),
@@ -707,7 +725,7 @@ impl TryFrom<PubkeyScript> for ScriptPubkeyDescr {
 /// Descriptors exposing bare scripts (unlike [`miniscript::Descriptor`] which
 /// uses miniscript representation of the scripts).
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-#[derive(StrictEncode, StrictDecode)]
+// #[derive(StrictEncode, StrictDecode)]
 #[non_exhaustive]
 pub enum BareDescriptor {
     Bare(PubkeyScript),
@@ -726,7 +744,7 @@ pub enum BareDescriptor {
 
     Wsh(WitnessScript),
 
-    Tr(UntweakedPublicKey, Option<TapBranchHash>),
+    Tr(UntweakedPublicKey, Option<TapNodeHash>),
 }
 
 impl Display for BareDescriptor {

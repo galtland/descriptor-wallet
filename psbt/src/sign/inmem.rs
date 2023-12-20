@@ -16,9 +16,9 @@ use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::hash::Hasher;
 
+use bitcoin::bip32::{DerivationPath, Fingerprint, Xpriv, Xpub};
 use bitcoin::secp256k1::{KeyPair, PublicKey, Secp256k1, SecretKey, Signing, XOnlyPublicKey};
-use bitcoin::util::bip32::{DerivationPath, ExtendedPrivKey, ExtendedPubKey, Fingerprint};
-use bitcoin::XpubIdentifier;
+use bitcoin::XKeyIdentifier;
 use bitcoin_hd::{AccountStep, DerivationAccount, TerminalStep, XpubRef};
 #[cfg(feature = "miniscript")]
 use bitcoin_hd::{Bip43, DerivationStandard};
@@ -30,67 +30,79 @@ use super::{SecretProvider, SecretProviderError};
 /// Account-specific extended private key, kept in memory with information about
 /// account path derivation from the master key.
 ///
-/// Accounts are uniquially identified by a [`XpubIdentifier`] generated from
+/// Accounts are uniquially identified by a [`XKeyIdentifier`] generated from
 /// an extended public key corresponding to the account-level extended private
 /// key (i.e. not master extended key, but a key at account-level derivation
 /// path).
 #[derive(Clone, Getters, Debug, Display)]
 #[display("m[{master_id}]/{derivation}=[{account_xpub}]")]
 pub struct MemorySigningAccount {
-    master_id: XpubIdentifier,
+    master_id: XKeyIdentifier,
     derivation: DerivationPath,
-    account_xpriv: ExtendedPrivKey,
-    account_xpub: ExtendedPubKey,
+    account_xpriv: Xpriv,
+    account_xpub: Xpub,
 }
 
 impl Ord for MemorySigningAccount {
     #[inline]
-    fn cmp(&self, other: &Self) -> Ordering { self.account_xpub.cmp(&other.account_xpub) }
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.account_xpub.cmp(&other.account_xpub)
+    }
 }
 
 impl PartialOrd for MemorySigningAccount {
     #[inline]
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl PartialEq for MemorySigningAccount {
-    fn eq(&self, other: &Self) -> bool { self.account_xpub == other.account_xpub }
+    fn eq(&self, other: &Self) -> bool {
+        self.account_xpub == other.account_xpub
+    }
 }
 
 impl Eq for MemorySigningAccount {}
 
 impl std::hash::Hash for MemorySigningAccount {
-    fn hash<H: Hasher>(&self, state: &mut H) { self.account_xpub.hash(state) }
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.account_xpub.hash(state)
+    }
 }
 
 impl MemorySigningAccount {
     #[inline]
     pub fn with<C: Signing>(
         secp: &Secp256k1<C>,
-        master_id: XpubIdentifier,
+        master_id: XKeyIdentifier,
         derivation: impl Into<DerivationPath>,
-        account_xpriv: ExtendedPrivKey,
+        account_xpriv: Xpriv,
     ) -> MemorySigningAccount {
         MemorySigningAccount {
             master_id,
             derivation: derivation.into(),
             account_xpriv,
-            account_xpub: ExtendedPubKey::from_priv(secp, &account_xpriv),
+            account_xpub: Xpub::from_priv(secp, &account_xpriv),
         }
     }
 
     #[inline]
     pub fn master_fingerprint(&self) -> Fingerprint {
         Fingerprint::from(&self.master_id[..4])
-        // TODO: Do a convertor from XpubIdentifier to Fingerprint in
+        // TODO: Do a convertor from XKeyIdentifier to Fingerprint in
         //       rust-bitcoin
     }
 
     #[inline]
-    pub fn account_id(&self) -> XpubIdentifier { self.account_xpub.identifier() }
+    pub fn account_id(&self) -> XKeyIdentifier {
+        self.account_xpub.identifier()
+    }
 
     #[inline]
-    pub fn account_fingerprint(&self) -> Fingerprint { self.account_xpub.fingerprint() }
+    pub fn account_fingerprint(&self) -> Fingerprint {
+        self.account_xpub.fingerprint()
+    }
 
     #[inline]
     pub fn derive_seckey<C: Signing>(
@@ -101,7 +113,7 @@ impl MemorySigningAccount {
         let xpriv = self
             .account_xpriv
             .derive_priv(secp, derivation)
-            .expect("ExtendedPrivKey integrity issue");
+            .expect("Xpriv integrity issue");
         xpriv.private_key
     }
 
@@ -193,7 +205,9 @@ where
     type IntoIter = std::collections::btree_set::Iter<'secp, MemorySigningAccount>;
 
     #[inline]
-    fn into_iter(self) -> Self::IntoIter { self.accounts.iter() }
+    fn into_iter(self) -> Self::IntoIter {
+        self.accounts.iter()
+    }
 }
 
 impl<'secp, C> SecretProvider<C> for MemoryKeyProvider<'secp, C>
@@ -201,7 +215,9 @@ where
     C: Signing,
 {
     #[inline]
-    fn secp_context(&self) -> &Secp256k1<C> { self.secp }
+    fn secp_context(&self) -> &Secp256k1<C> {
+        self.secp
+    }
 
     fn secret_key(
         &self,
@@ -253,5 +269,7 @@ where
     }
 
     #[inline]
-    fn use_musig(&self) -> bool { self.musig }
+    fn use_musig(&self) -> bool {
+        self.musig
+    }
 }

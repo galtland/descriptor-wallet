@@ -19,15 +19,15 @@
 use core::ops::Deref;
 
 use amplify::Wrapper;
+use bitcoin::address::WitnessVersion;
 use bitcoin::hashes::Hash;
 use bitcoin::schnorr::TapTweak;
 use bitcoin::secp256k1::{self, KeyPair, Signing, Verification, XOnlyPublicKey};
-use bitcoin::util::address::WitnessVersion;
-use bitcoin::util::sighash::{self, Prevouts, ScriptPath, SighashCache};
-use bitcoin::util::taproot::TapLeafHash;
+use bitcoin::sighash::{self, Prevouts, ScriptPath, SighashCache};
+use bitcoin::taproot::TapLeafHash;
 use bitcoin::{
-    EcdsaSig, EcdsaSighashType, PubkeyHash, PublicKey, SchnorrSig, SchnorrSighashType, Script,
-    Transaction, TxOut,
+    EcdsaSighashType, EcdsaSighashType, PubkeyHash, PublicKey, Script, TapSighashType,
+    TapSighashType, Transaction, TxOut,
 };
 use bitcoin_scripts::{PubkeyScript, RedeemScript};
 use descriptors::{self, CompositeDescrType, DeductionError};
@@ -98,8 +98,8 @@ pub enum SignInputError {
     /// taproot key signature existing hash type `{prev_sighash_type:?}` does
     /// not match current type `{sighash_type:?}` for input
     TaprootKeySighashTypeMismatch {
-        prev_sighash_type: SchnorrSighashType,
-        sighash_type: SchnorrSighashType,
+        prev_sighash_type: TapSighashType,
+        sighash_type: TapSighashType,
     },
 
     /// unable to derive private key with a given derivation path: elliptic
@@ -418,7 +418,7 @@ impl Input {
         partial_sig.push(sighash_type as u8);
         self.partial_sigs.insert(
             bitcoin::PublicKey::new(pubkey),
-            EcdsaSig::from_slice(&partial_sig).expect("serialize_der failure"),
+            EcdsaSighashType::from_slice(&partial_sig).expect("serialize_der failure"),
         );
 
         Ok(true)
@@ -460,14 +460,14 @@ impl Input {
                 sighash_type: self.sighash_type.expect("option unwrapped above").to_u32(),
                 index,
             })?
-            .unwrap_or(SchnorrSighashType::Default);
+            .unwrap_or(TapSighashType::Default);
         if matches!(
             (sighash_type, prevouts),
             (
-                SchnorrSighashType::All
-                    | SchnorrSighashType::None
-                    | SchnorrSighashType::Single
-                    | SchnorrSighashType::Default,
+                TapSighashType::All
+                    | TapSighashType::None
+                    | TapSighashType::Single
+                    | TapSighashType::Default,
                 Prevouts::One(..),
             )
         ) {
@@ -505,7 +505,7 @@ impl Input {
                         .expect("taproot Sighash generation is broken"),
                     &keypair,
                 );
-                let sig = SchnorrSig {
+                let sig = TapSighashType {
                     sig: signature,
                     hash_ty: sighash_type,
                 };
@@ -534,7 +534,7 @@ impl Input {
             {
                 // Skip creating partial sig
             }
-            Some(SchnorrSig {
+            Some(TapSighashType {
                 sig: ref mut prev_signature,
                 hash_ty: prev_sighash_type,
             }) if prev_sighash_type == sighash_type => {
@@ -565,13 +565,13 @@ impl Input {
                 signature_count += 1;
             }
             None => {
-                self.tap_key_sig = Some(SchnorrSig {
+                self.tap_key_sig = Some(TapSighashType {
                     sig: signature,
                     hash_ty: sighash_type,
                 });
                 signature_count += 1;
             }
-            Some(SchnorrSig {
+            Some(TapSighashType {
                 hash_ty: prev_sighash_type,
                 ..
             }) => {

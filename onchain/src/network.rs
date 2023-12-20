@@ -16,7 +16,7 @@ use bitcoin_hd::standards::DerivationBlockchain;
 #[derive(
     Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default, Debug, Display
 )]
-#[derive(StrictEncode, StrictDecode)]
+// #[derive(StrictEncode, StrictDecode)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -38,7 +38,9 @@ pub enum PublicNetwork {
 }
 
 impl From<PublicNetwork> for Network {
-    fn from(network: PublicNetwork) -> Self { Network::from(&network) }
+    fn from(network: PublicNetwork) -> Self {
+        Network::from(&network)
+    }
 }
 
 impl From<&PublicNetwork> for Network {
@@ -59,12 +61,15 @@ impl TryFrom<Network> for PublicNetwork {
             Network::Testnet => PublicNetwork::Testnet,
             Network::Signet => PublicNetwork::Signet,
             Network::Regtest => return Err(()),
+            _ => todo!(),
         })
     }
 }
 
 impl From<PublicNetwork> for DerivationBlockchain {
-    fn from(network: PublicNetwork) -> Self { DerivationBlockchain::from(&network) }
+    fn from(network: PublicNetwork) -> Self {
+        DerivationBlockchain::from(&network)
+    }
 }
 
 impl From<&PublicNetwork> for DerivationBlockchain {

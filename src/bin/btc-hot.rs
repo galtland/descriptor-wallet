@@ -33,13 +33,13 @@ use aes::{Aes256, Block};
 use amplify::hex::ToHex;
 use amplify::IoError;
 use bip39::Mnemonic;
+use bitcoin::bip32;
+use bitcoin::bip32::{ChildNumber, DerivationPath, Xpriv, Xpub};
 use bitcoin::consensus::{self, Decodable, Encodable};
 use bitcoin::hashes::{sha256, Hash};
 use bitcoin::secp256k1::rand::RngCore;
 use bitcoin::secp256k1::{self, rand, Secp256k1, Signing};
-use bitcoin::util::bip32;
-use bitcoin::util::bip32::{ChildNumber, DerivationPath, ExtendedPrivKey, ExtendedPubKey};
-use bitcoin::XpubIdentifier;
+use bitcoin::XKeyIdentifier;
 use bitcoin_hd::{DerivationAccount, DerivationStandard, SegmentIndexes};
 use clap::Parser;
 use colored::Colorize;
@@ -73,7 +73,9 @@ pub enum Network {
 
 impl Network {
     #[inline]
-    pub fn is_testnet(self) -> bool { self != Network::Bitcoin }
+    pub fn is_testnet(self) -> bool {
+        self != Network::Bitcoin
+    }
 }
 
 impl From<Network> for DerivationBlockchain {
@@ -108,7 +110,9 @@ pub enum SeedType {
 
 impl SeedType {
     #[inline]
-    pub fn bit_len(self) -> usize { self as usize }
+    pub fn bit_len(self) -> usize {
+        self as usize
+    }
 
     #[inline]
     pub fn byte_len(self) -> usize {
@@ -190,11 +194,13 @@ impl Seed {
     }
 
     #[inline]
-    pub fn as_entropy(&self) -> &[u8] { &self.0 }
+    pub fn as_entropy(&self) -> &[u8] {
+        &self.0
+    }
 
     #[inline]
-    pub fn master_xpriv(&self, testnet: bool) -> Result<ExtendedPrivKey, bip32::Error> {
-        ExtendedPrivKey::new_master(
+    pub fn master_xpriv(&self, testnet: bool) -> Result<Xpriv, bip32::Error> {
+        Xpriv::new_master(
             if testnet {
                 bitcoin::Network::Testnet
             } else {
@@ -233,7 +239,7 @@ impl SecretIo for MemorySigningAccount {
     {
         let mut slice = [0u8; 20];
         reader.read_exact(&mut slice)?;
-        let master_id = XpubIdentifier::from_inner(slice);
+        let master_id = XKeyIdentifier::from_inner(slice);
 
         let len = u64::consensus_decode(&mut reader)?;
         let mut path = Vec::with_capacity(len as usize);
@@ -247,7 +253,7 @@ impl SecretIo for MemorySigningAccount {
             let data = decode(slice, password);
             slice.copy_from_slice(&data);
         }
-        let account_xpriv = ExtendedPrivKey::decode(&slice[..78]).map_err(|_| {
+        let account_xpriv = Xpriv::decode(&slice[..78]).map_err(|_| {
             consensus::encode::Error::ParseFailed("account extended private key failure")
         })?;
 
@@ -623,7 +629,7 @@ impl Args {
 
         let seed = Seed::read(seed_file, &seed_password)?;
         let master_xpriv = seed.master_xpriv(network.is_testnet())?;
-        let master_xpub = ExtendedPubKey::from_priv(&secp, &master_xpriv);
+        let master_xpub = Xpub::from_priv(&secp, &master_xpriv);
         let derivation = scheme.to_account_derivation(account.into(), network.into());
         let account_xpriv = master_xpriv.derive_priv(&secp, &derivation)?;
 
@@ -645,7 +651,7 @@ impl Args {
         let seed_password = rpassword::read_password()?;
         let seed = Seed::read(seed_file, &seed_password)?;
         let master_xpriv = seed.master_xpriv(false)?;
-        let master_xpub = ExtendedPubKey::from_priv(&secp, &master_xpriv);
+        let master_xpub = Xpub::from_priv(&secp, &master_xpriv);
         let account = MemorySigningAccount::with(
             &secp,
             master_xpub.identifier(),
@@ -715,7 +721,7 @@ impl Args {
         }
 
         let mut xpriv = seed.master_xpriv(false).expect("invalid seed");
-        let mut xpub = ExtendedPubKey::from_priv(secp, &xpriv);
+        let mut xpub = Xpub::from_priv(secp, &xpriv);
 
         println!("{}", "Master key:".bright_white());
         println!(

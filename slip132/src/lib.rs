@@ -29,8 +29,8 @@ extern crate serde_crate as serde;
 use std::fmt::Debug;
 use std::str::FromStr;
 
-use bitcoin::util::base58;
-use bitcoin::util::bip32::{self, ChildNumber, DerivationPath, ExtendedPrivKey, ExtendedPubKey};
+use bitcoin::base58;
+use bitcoin::bip32::{self, ChildNumber, DerivationPath, Xpriv, Xpub};
 use bitcoin::Network;
 
 /// Magical version bytes for xpub: bitcoin mainnet public key for P2PKH or P2SH
@@ -94,7 +94,7 @@ pub const VERSION_MAGIC_VPRV_MULTISIG: [u8; 4] = [0x02, 0x57, 0x50, 0x48];
 
 /// Extended public and private key processing errors
 #[derive(
-    Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display, From, Error
+    Clone, PartialEq, Eq, Debug, Display, From, Error
 )]
 #[display(doc_comments)]
 pub enum Error {
@@ -104,7 +104,7 @@ pub enum Error {
 
     /// error in hex key encoding. Details: {0}
     #[from]
-    Hex(bitcoin::hashes::hex::Error),
+    Hex(bitcoin::hashes::hex::HexToArrayError),
 
     /// pk->pk derivation was attempted on a hardened key.
     CannotDeriveFromHardenedKey,
@@ -211,53 +211,75 @@ pub trait VersionResolver:
 
     /// Detects whether provided version corresponds to an extended public key.
     /// Returns `None` if the version is not recognized/unknown to the resolver.
-    fn is_pub(_: &KeyVersion) -> Option<bool> { None }
+    fn is_pub(_: &KeyVersion) -> Option<bool> {
+        None
+    }
 
     /// Detects whether provided version corresponds to an extended private key.
     /// Returns `None` if the version is not recognized/unknown to the resolver.
-    fn is_prv(_: &KeyVersion) -> Option<bool> { None }
+    fn is_prv(_: &KeyVersion) -> Option<bool> {
+        None
+    }
 
     /// Detects network used by the provided key version bytes.
     /// Returns `None` if the version is not recognized/unknown to the resolver.
-    fn network(_: &KeyVersion) -> Option<Self::Network> { None }
+    fn network(_: &KeyVersion) -> Option<Self::Network> {
+        None
+    }
 
     /// Detects application scope defined by the provided key version bytes.
     /// Application scope is a types of scriptPubkey descriptors in which given
     /// extended public/private keys can be used.
     /// Returns `None` if the version is not recognized/unknown to the resolver.
-    fn application(_: &KeyVersion) -> Option<Self::Application> { None }
+    fn application(_: &KeyVersion) -> Option<Self::Application> {
+        None
+    }
 
     /// Returns BIP 32 derivation path for the provided key version.
     /// Returns `None` if the version is not recognized/unknown to the resolver.
-    fn derivation_path(_: &KeyVersion, _: Option<ChildNumber>) -> Option<DerivationPath> { None }
+    fn derivation_path(_: &KeyVersion, _: Option<ChildNumber>) -> Option<DerivationPath> {
+        None
+    }
 
     /// Converts version into version corresponding to an extended public key.
     /// Returns `None` if the resolver does not know how to perform conversion.
-    fn make_pub(_: &KeyVersion) -> Option<KeyVersion> { None }
+    fn make_pub(_: &KeyVersion) -> Option<KeyVersion> {
+        None
+    }
 
     /// Converts version into version corresponding to an extended private key.
     /// Returns `None` if the resolver does not know how to perform conversion.
-    fn make_prv(_: &KeyVersion) -> Option<KeyVersion> { None }
+    fn make_prv(_: &KeyVersion) -> Option<KeyVersion> {
+        None
+    }
 }
 
 impl KeyVersion {
     /// Detects whether provided version corresponds to an extended public key.
     /// Returns `None` if the version is not recognized/unknown to the resolver.
-    pub fn is_pub<R: VersionResolver>(&self) -> Option<bool> { R::is_pub(self) }
+    pub fn is_pub<R: VersionResolver>(&self) -> Option<bool> {
+        R::is_pub(self)
+    }
 
     /// Detects whether provided version corresponds to an extended private key.
     /// Returns `None` if the version is not recognized/unknown to the resolver.
-    pub fn is_prv<R: VersionResolver>(&self) -> Option<bool> { R::is_prv(self) }
+    pub fn is_prv<R: VersionResolver>(&self) -> Option<bool> {
+        R::is_prv(self)
+    }
 
     /// Detects network used by the provided key version bytes.
     /// Returns `None` if the version is not recognized/unknown to the resolver.
-    pub fn network<R: VersionResolver>(&self) -> Option<R::Network> { R::network(self) }
+    pub fn network<R: VersionResolver>(&self) -> Option<R::Network> {
+        R::network(self)
+    }
 
     /// Detects application scope defined by the provided key version bytes.
     /// Application scope is a types of scriptPubkey descriptors in which given
     /// extended public/private keys can be used.
     /// Returns `None` if the version is not recognized/unknown to the resolver.
-    pub fn application<R: VersionResolver>(&self) -> Option<R::Application> { R::application(self) }
+    pub fn application<R: VersionResolver>(&self) -> Option<R::Application> {
+        R::application(self)
+    }
 
     /// Returns BIP 32 derivation path for the provided key version.
     /// Returns `None` if the version is not recognized/unknown to the resolver.
@@ -270,11 +292,15 @@ impl KeyVersion {
 
     /// Converts version into version corresponding to an extended public key.
     /// Returns `None` if the resolver does not know how to perform conversion.
-    pub fn try_to_pub<R: VersionResolver>(&self) -> Option<KeyVersion> { R::make_pub(self) }
+    pub fn try_to_pub<R: VersionResolver>(&self) -> Option<KeyVersion> {
+        R::make_pub(self)
+    }
 
     /// Converts version into version corresponding to an extended private key.
     /// Returns `None` if the resolver does not know how to perform conversion.
-    pub fn try_to_prv<R: VersionResolver>(&self) -> Option<KeyVersion> { R::make_prv(self) }
+    pub fn try_to_prv<R: VersionResolver>(&self) -> Option<KeyVersion> {
+        R::make_prv(self)
+    }
 }
 
 /// Default resolver knowing native [`bitcoin::network::constants::Network`]
@@ -414,31 +440,45 @@ impl KeyVersion {
     /// If the string does not contain at least 5 characters.
     #[inline]
     pub fn from_xkey_str(key: &str) -> Result<KeyVersion, Error> {
-        let xkey = base58::from(key)?;
+        let xkey = base58::decode(key)?;
         KeyVersion::from_slice(&xkey[..4]).ok_or(Error::UnknownSlip32Prefix)
     }
 
     /// Constructs [`KeyVersion`] from a fixed 4 bytes values
-    pub fn from_bytes(version_bytes: [u8; 4]) -> KeyVersion { KeyVersion(version_bytes) }
+    pub fn from_bytes(version_bytes: [u8; 4]) -> KeyVersion {
+        KeyVersion(version_bytes)
+    }
 
     /// Constructs [`KeyVersion`] from a `u32`-representation of the version
     /// bytes (the representation must be in bing endian format)
-    pub fn from_u32(version: u32) -> KeyVersion { KeyVersion(version.to_be_bytes()) }
+    pub fn from_u32(version: u32) -> KeyVersion {
+        KeyVersion(version.to_be_bytes())
+    }
 
     /// Converts version bytes into `u32` representation in big endian format
-    pub fn to_u32(&self) -> u32 { u32::from_be_bytes(self.0) }
+    pub fn to_u32(&self) -> u32 {
+        u32::from_be_bytes(self.0)
+    }
 
     /// Returns slice representing internal version bytes
-    pub fn as_slice(&self) -> &[u8] { &self.0 }
+    pub fn as_slice(&self) -> &[u8] {
+        &self.0
+    }
 
     /// Returns internal representation of version bytes
-    pub fn as_bytes(&self) -> &[u8; 4] { &self.0 }
+    pub fn as_bytes(&self) -> &[u8; 4] {
+        &self.0
+    }
 
     /// Constructs 4-byte array containing version byte values
-    pub fn to_bytes(&self) -> [u8; 4] { self.0 }
+    pub fn to_bytes(&self) -> [u8; 4] {
+        self.0
+    }
 
     /// Converts into 4-byte array containing version byte values
-    pub fn into_bytes(self) -> [u8; 4] { self.0 }
+    pub fn into_bytes(self) -> [u8; 4] {
+        self.0
+    }
 }
 
 impl VersionResolver for DefaultResolver {
@@ -508,7 +548,9 @@ impl VersionResolver for DefaultResolver {
         }
     }
 
-    fn is_prv(kv: &KeyVersion) -> Option<bool> { DefaultResolver::is_pub(kv).map(|v| !v) }
+    fn is_prv(kv: &KeyVersion) -> Option<bool> {
+        DefaultResolver::is_pub(kv).map(|v| !v)
+    }
 
     fn network(kv: &KeyVersion) -> Option<Self::Network> {
         match kv.as_bytes() {
@@ -696,9 +738,9 @@ pub trait FromSlip132 {
         Self: Sized;
 }
 
-impl FromSlip132 for ExtendedPubKey {
+impl FromSlip132 for Xpub {
     fn from_slip132_str(s: &str) -> Result<Self, Error> {
-        let mut data = base58::from_check(s)?;
+        let mut data = base58::decode_check(s)?;
 
         let mut prefix = [0u8; 4];
         prefix.copy_from_slice(&data[0..4]);
@@ -719,15 +761,15 @@ impl FromSlip132 for ExtendedPubKey {
         };
         data[0..4].copy_from_slice(&slice);
 
-        let xpub = ExtendedPubKey::decode(&data)?;
+        let xpub = Xpub::decode(&data)?;
 
         Ok(xpub)
     }
 }
 
-impl FromSlip132 for ExtendedPrivKey {
+impl FromSlip132 for Xpriv {
     fn from_slip132_str(s: &str) -> Result<Self, Error> {
-        let mut data = base58::from_check(s)?;
+        let mut data = base58::decode_check(s)?;
 
         let mut prefix = [0u8; 4];
         prefix.copy_from_slice(&data[0..4]);
@@ -748,7 +790,7 @@ impl FromSlip132 for ExtendedPrivKey {
         };
         data[0..4].copy_from_slice(&slice);
 
-        let xprv = ExtendedPrivKey::decode(&data)?;
+        let xprv = Xpriv::decode(&data)?;
 
         Ok(xprv)
     }
@@ -761,21 +803,21 @@ pub trait ToSlip132 {
     fn to_slip132_string(&self, key_application: KeyApplication, network: Network) -> String;
 }
 
-impl ToSlip132 for ExtendedPubKey {
+impl ToSlip132 for Xpub {
     fn to_slip132_string(&self, key_application: KeyApplication, network: Network) -> String {
         let key_version = DefaultResolver::resolve(network, key_application, false);
         let mut xpub = self.encode();
         xpub[0..4].copy_from_slice(key_version.as_slice());
-        base58::check_encode_slice(&xpub)
+        base58::encode_check(&xpub)
     }
 }
 
-impl ToSlip132 for ExtendedPrivKey {
+impl ToSlip132 for Xpriv {
     fn to_slip132_string(&self, key_application: KeyApplication, network: Network) -> String {
         let key_version = DefaultResolver::resolve(network, key_application, true);
         let mut xpriv = self.encode();
         xpriv[0..4].copy_from_slice(key_version.as_slice());
-        base58::check_encode_slice(&xpriv)
+        base58::encode_check(&xpriv)
     }
 }
 
@@ -1602,64 +1644,64 @@ mod test {
     fn xpub_from_slip132_str() {
         // Mainnet
         let xpub_str = "xpub6BosfCnifzxcJJ1wYuntGJfF2zPJkDeG9ELNHcKNjezuea4tumswN9sH1psMdSVqCMoJC21Bv8usSeqSP4Sp1tLzW7aY59fGn9GCYzx5UTo";
-        let xpub = ExtendedPubKey::from_str(xpub_str).unwrap();
+        let xpub = Xpub::from_str(xpub_str).unwrap();
         let ypub_str = "ypub6We8xsTdpgW69bD4PGaWUPkkCxXkgqdm4Lrb51DG7fNnhft8AS3VzDXR32pwdM9kbzv6wVbkNoGRKwT16krpp82bNTGxf4Um3sKqwYoGn8q";
         let ypub_multi = "Ypub6hYE67C5Pe4TaANSKw3VJU6Yvka1uCKMNcWFzGUoVSDCKrT2vqRn5LPLqjnRBnNeqTz5p5bsG1evT74mPz1mxc9GCvPN4TwkwbbiXTy4WMA";
         let zpub_str = "zpub6qUQGY8YyN3ZztQBDdN8gUrFNvgCdTdFyTNorQ79VfkfkmhMR6D4cHBZ4EnXdFog1e2ugyCJqTcyDE4ZpTGqcMiCEnyPEyJFKbPVL9knhKU";
         let zpub_multi = "Zpub72NVPmrzYKbwRTZZAHq7WZC46iiTqpJrHj2UmfNgsSb5NxGGBVbLhQ3Urwk1Bh2aF76tZZCRig1ULPgL7gRnkqps5G5neNmFDKfMv51dh4F";
-        assert_eq!(ExtendedPubKey::from_slip132_str(xpub_str), Ok(xpub));
-        assert_eq!(ExtendedPubKey::from_slip132_str(ypub_str), Ok(xpub));
-        assert_eq!(ExtendedPubKey::from_slip132_str(ypub_multi), Ok(xpub));
-        assert_eq!(ExtendedPubKey::from_slip132_str(zpub_str), Ok(xpub));
-        assert_eq!(ExtendedPubKey::from_slip132_str(zpub_multi), Ok(xpub));
+        assert_eq!(Xpub::from_slip132_str(xpub_str), Ok(xpub));
+        assert_eq!(Xpub::from_slip132_str(ypub_str), Ok(xpub));
+        assert_eq!(Xpub::from_slip132_str(ypub_multi), Ok(xpub));
+        assert_eq!(Xpub::from_slip132_str(zpub_str), Ok(xpub));
+        assert_eq!(Xpub::from_slip132_str(zpub_multi), Ok(xpub));
 
         // Testnet
         let tpub_str = "tpubDCBWBScQPGv4a6Co16myUDzcN7Uxjc9KgrvfeANX5ZkoPrjbyzj2WbY7Frx99wT4zGLCobX4TEjv8qL3mvJ3uKoHZiKqkgKWN6rcK3NAdLv";
-        let tpub = ExtendedPubKey::from_str(tpub_str).unwrap();
+        let tpub = Xpub::from_str(tpub_str).unwrap();
         let upub_str = "upub5DK5kCmyDxLAkQSb3qS1e3NjX5wxvMfmPtmhwRdibdsGVGdD9oPFVxtrxCzbdiY4ySSswbDWY9rDnnzkDyCmdBJBu6VGKRCoxy5GPFTTwv5";
         let upub_multi = "Upub5QDAsSWQnutYAybxzVtzU7iYEszE8iMMiARNrguFyQhg7TC7vCmXb5knkux5C9kyCuWrpBDdRNEiuxcWXCMimfQrjZbfipforhM8yFdtHZV";
         let vpub_str = "vpub5Y9M3sStNdsebhdhtCDdr8UEh46QryfGK1HvipXbyeF9YNSSQTYp82YzyQxBddBzP5Zgh4p4zpCmg5cJwfcnRQynmSBguL2JEh8umtXSXHN";
         let vpub_multi = "Vpub5j3SB7BKwbS22Go5prgcgCp3Qr8g5LLrdGwbe5o9MR5ZAZ1MArw6D9Qvn7ufC4QtcYdfZepBt2bGoFE5EtmjZu6TbuJ6JjVJ8RQnMkMTT7U";
-        assert_eq!(ExtendedPubKey::from_slip132_str(tpub_str), Ok(tpub));
-        assert_eq!(ExtendedPubKey::from_slip132_str(upub_str), Ok(tpub));
-        assert_eq!(ExtendedPubKey::from_slip132_str(upub_multi), Ok(tpub));
-        assert_eq!(ExtendedPubKey::from_slip132_str(vpub_str), Ok(tpub));
-        assert_eq!(ExtendedPubKey::from_slip132_str(vpub_multi), Ok(tpub));
+        assert_eq!(Xpub::from_slip132_str(tpub_str), Ok(tpub));
+        assert_eq!(Xpub::from_slip132_str(upub_str), Ok(tpub));
+        assert_eq!(Xpub::from_slip132_str(upub_multi), Ok(tpub));
+        assert_eq!(Xpub::from_slip132_str(vpub_str), Ok(tpub));
+        assert_eq!(Xpub::from_slip132_str(vpub_multi), Ok(tpub));
     }
 
     #[test]
     fn xprv_from_slip132_str() {
         // Mainnet
         let xprv_str = "xprv9xpXFhFpqdQK5owUStFsuAiWUxYpLkvQn1QmVDumBKTvmmjkNEZgpMYoAaAftt3JVeDhRkvyLvrKathDToUMdz2FqRF7JNavF7uboJWArrw";
-        let xprv = ExtendedPrivKey::from_str(xprv_str).unwrap();
+        let xprv = Xpriv::from_str(xprv_str).unwrap();
         let yprv_str = "yprvAHenZMvjzJwnw78bHF3W7Fp1evhGHNuuh7vzGcoeZKqopsYyctjFSRCwBn8FtnhDuHLWBEXXobCsUBJnBVtNSDhrhkwXtHQQWqyFBpXETuS";
         let yprv_multi = "YprvAUYsgbfBZGWAMgHyDuWUwL9pNijXVjbW1PafBt5Bw6gDT47tPJ7XXY4rzV5jTDv88kQV3pXegobNbLvYUj3KahpXYE3wHgsQQaF7mkmDXua";
         let zprv_str = "zprvAcV3s2bf8zVGnQKi7bq8KLuWptqiDzuQcETD41hXwLDgsyNCsYtp4Us5Cz5qthM9JvTJvi86GFZRMTvLuCJPETPTa6dxUCDtna2taUzNeUa";
         let zprv_multi = "ZprvAoP8zGL6hx3eCyV64GJ79RFKYgsySMazvW6syGy5K746W9w7dxH69bj11h3KT8a3YPXHoJ8D9TwvUdY7CRTLNwW8QZkMsbgtgJJmANdRWza";
-        assert_eq!(ExtendedPrivKey::from_slip132_str(xprv_str), Ok(xprv));
-        assert_eq!(ExtendedPrivKey::from_slip132_str(yprv_str), Ok(xprv));
-        assert_eq!(ExtendedPrivKey::from_slip132_str(yprv_multi), Ok(xprv));
-        assert_eq!(ExtendedPrivKey::from_slip132_str(zprv_str), Ok(xprv));
-        assert_eq!(ExtendedPrivKey::from_slip132_str(zprv_multi), Ok(xprv));
+        assert_eq!(Xpriv::from_slip132_str(xprv_str), Ok(xprv));
+        assert_eq!(Xpriv::from_slip132_str(yprv_str), Ok(xprv));
+        assert_eq!(Xpriv::from_slip132_str(yprv_multi), Ok(xprv));
+        assert_eq!(Xpriv::from_slip132_str(zprv_str), Ok(xprv));
+        assert_eq!(Xpriv::from_slip132_str(zprv_multi), Ok(xprv));
 
         // Testnet
         let tprv_str = "tprv8fVU32aAEuEPgdB17T7P4pLVo5y2aGxR7ZKtMeLDfHxQZNUqMbuSL6vF5kLKuFRcs5kURrYjWHS83kExb1pJT3HrN4TQxjJyADf2F32kmMf";
-        let tprv = ExtendedPrivKey::from_str(tprv_str).unwrap();
+        let tprv = Xpriv::from_str(tprv_str).unwrap();
         let uprv_str = "uprv8zKjLhF5PamsXvN7wou1GuRzy47UWtwv2fr793E73JLHcUJ4cG4zxAaP6xHuuA5YGisHBL9Hxwnfw2rXJiEKFGyTEQ9qYe8TRwifdcMUKTP";
         let uprv_multi = "Uprv9BDpTvyWxYLExVXVtUMz6ymogr9jjFdWLwVn4JVeR5AhEeryNfTH3HSJufFPTbJSWBwG3v9QrABB4CUHbwPGPm684sGEx3bTKfzYDSPHHCV";
         let vprv_str = "vprv9K9zeMuzYGKMPDZEnAgdUzXW92FvTWwQwnNKvS7zRJiAfa7HrvEZaEEX8AFVu4jTgMz5vojrRc9DpKU62QeL3Wf46jrG8YwwhfnK26J1Pi6";
         let vprv_multi = "Vprv1CMQ2h95oDkM8omHwD22Go9vqpcjv19x3yLpMZkqw9HAL4kaYU7W2eo4c1HqwNPSVN3wBuqrw5HUiA8z3zHz7cb2QFRfWnUkvYDCHhvLxCW";
-        assert_eq!(ExtendedPrivKey::from_slip132_str(tprv_str), Ok(tprv));
-        assert_eq!(ExtendedPrivKey::from_slip132_str(uprv_str), Ok(tprv));
-        assert_eq!(ExtendedPrivKey::from_slip132_str(uprv_multi), Ok(tprv));
-        assert_eq!(ExtendedPrivKey::from_slip132_str(vprv_str), Ok(tprv));
-        assert_eq!(ExtendedPrivKey::from_slip132_str(vprv_multi), Ok(tprv));
+        assert_eq!(Xpriv::from_slip132_str(tprv_str), Ok(tprv));
+        assert_eq!(Xpriv::from_slip132_str(uprv_str), Ok(tprv));
+        assert_eq!(Xpriv::from_slip132_str(uprv_multi), Ok(tprv));
+        assert_eq!(Xpriv::from_slip132_str(vprv_str), Ok(tprv));
+        assert_eq!(Xpriv::from_slip132_str(vprv_multi), Ok(tprv));
     }
 
     #[test]
     fn xpub_to_slip132_string() {
         let xpub_str = "xpub6BosfCnifzxcJJ1wYuntGJfF2zPJkDeG9ELNHcKNjezuea4tumswN9sH1psMdSVqCMoJC21Bv8usSeqSP4Sp1tLzW7aY59fGn9GCYzx5UTo";
-        let xpub = ExtendedPubKey::from_str(xpub_str).unwrap();
+        let xpub = Xpub::from_str(xpub_str).unwrap();
 
         // Mainnet
         assert_eq!(
@@ -1709,7 +1751,7 @@ mod test {
     #[test]
     fn xprv_to_slip132_string() {
         let xprv_str = "xprv9xpXFhFpqdQK5owUStFsuAiWUxYpLkvQn1QmVDumBKTvmmjkNEZgpMYoAaAftt3JVeDhRkvyLvrKathDToUMdz2FqRF7JNavF7uboJWArrw";
-        let xprv = ExtendedPrivKey::from_str(xprv_str).unwrap();
+        let xprv = Xpriv::from_str(xprv_str).unwrap();
 
         // Mainnet
         assert_eq!(

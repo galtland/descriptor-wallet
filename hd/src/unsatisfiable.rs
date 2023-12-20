@@ -9,9 +9,12 @@
 // along with this software.
 // If not, see <https://opensource.org/licenses/Apache-2.0>.
 
+use std::str::FromStr;
+
+use bitcoin::bip32::Xpub;
 use bitcoin::hashes::{sha256, Hash};
 use bitcoin::secp256k1::{self, PublicKey, SECP256K1};
-use bitcoin::util::bip32::ExtendedPubKey;
+use secp256k1::SecretKey;
 
 use crate::{DerivationAccount, DerivationSubpath, TerminalStep, XpubRef};
 
@@ -31,17 +34,20 @@ impl UnsatisfiableKey for PublicKey {
     type Param = ();
 
     fn unsatisfiable_key(_: Self::Param) -> Self {
-        let unspendable_key = PublicKey::from_secret_key(SECP256K1, &secp256k1::ONE_KEY);
+        let one_key =
+            SecretKey::from_str("0000000000000000000000000000000000000000000000000000000000000001")
+                .unwrap();
+        let unspendable_key = PublicKey::from_secret_key(SECP256K1, &one_key);
         let hash = &sha256::Hash::hash(&unspendable_key.serialize());
         let tweak =
-            secp256k1::Scalar::from_be_bytes(hash.into_inner()).expect("negligible probability");
+            secp256k1::Scalar::from_be_bytes(hash.to_byte_array()).expect("negligible probability");
         unspendable_key
             .add_exp_tweak(SECP256K1, &tweak)
             .expect("negligible probability")
     }
 }
 
-impl UnsatisfiableKey for ExtendedPubKey {
+impl UnsatisfiableKey for Xpub {
     type Param = bool;
 
     fn unsatisfiable_key(testnet: Self::Param) -> Self {
@@ -56,7 +62,7 @@ impl UnsatisfiableKey for ExtendedPubKey {
         buf.extend([0u8; 4]); // child no
         buf.extend(&unspendable_key.serialize()[1..]);
         buf.extend(unspendable_key.serialize());
-        ExtendedPubKey::decode(&buf).expect("broken unspendable key construction")
+        Xpub::decode(&buf).expect("broken unspendable key construction")
     }
 }
 
@@ -68,7 +74,7 @@ impl UnsatisfiableKey for DerivationAccount {
         DerivationAccount {
             master: XpubRef::Unknown,
             account_path: empty!(),
-            account_xpub: ExtendedPubKey::unsatisfiable_key(testnet),
+            account_xpub: Xpub::unsatisfiable_key(testnet),
             revocation_seal: None,
             terminal_path,
         }

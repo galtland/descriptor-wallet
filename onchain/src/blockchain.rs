@@ -20,24 +20,24 @@ use bitcoin::{BlockHash, Network, OutPoint};
 use chrono::NaiveDateTime;
 #[cfg(feature = "electrum")]
 use electrum_client::ListUnspentRes;
-use strict_encoding::{StrictDecode, StrictEncode};
+// use strict_encoding::{StrictDecode, StrictEncode};
 
 /// Error parsing string representation of wallet data/structure
 #[derive(
     Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Display, From, Error
 )]
 #[display(doc_comments)]
-#[from(bitcoin::hashes::hex::Error)]
+#[from(bitcoin::hashes::hex::HexToArrayError)]
 #[from(chrono::ParseError)]
 #[from(std::num::ParseIntError)]
 #[from(bitcoin::consensus::encode::Error)]
-#[from(bitcoin::util::amount::ParseAmountError)]
+#[from(bitcoin::amount::ParseAmountError)]
 #[from(bitcoin::blockdata::transaction::ParseOutPointError)]
 pub struct ParseError;
 
 /// Block mining information
 #[derive(Getters, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
-#[derive(StrictEncode, StrictDecode)]
+// #[derive(StrictEncode, StrictDecode)]
 #[display("{block_height}#{block_hash}@{timestamp}")]
 pub struct TimeHeight {
     timestamp: NaiveDateTime,
@@ -82,7 +82,7 @@ impl FromStr for TimeHeight {
 #[derive(
     Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Default, Debug, Display
 )]
-#[derive(StrictEncode, StrictDecode)]
+// #[derive(StrictEncode, StrictDecode)]
 pub enum MiningStatus {
     /// Transaction mining status is undefined
     #[default]
@@ -109,7 +109,7 @@ pub enum MiningStatus {
     serde(crate = "serde_crate")
 )]
 #[derive(Getters, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display)]
-#[derive(StrictEncode, StrictDecode)]
+// #[derive(StrictEncode, StrictDecode)]
 #[display("{amount}@{outpoint}")]
 pub struct Utxo {
     /// Status of the transaction containing this UTXO
@@ -117,10 +117,7 @@ pub struct Utxo {
     /// UTXO outpoint
     outpoint: OutPoint,
     /// Value stored in the UTXO
-    #[cfg_attr(
-        feature = "serde",
-        serde(with = "bitcoin::util::amount::serde::as_btc")
-    )]
+    #[cfg_attr(feature = "serde", serde(with = "bitcoin::amount::serde::as_btc"))]
     amount: bitcoin::Amount,
 }
 

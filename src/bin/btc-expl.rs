@@ -23,9 +23,9 @@ use std::io;
 
 use amplify::hex::ToHex;
 use amplify::IoError;
-use bitcoin::util::address::WitnessVersion;
-use bitcoin::util::taproot::LeafVersion;
-use bitcoin::{consensus, Address, EcdsaSig, LockTime, Network, PublicKey, Script, Txid};
+use bitcoin::address::WitnessVersion;
+use bitcoin::taproot::LeafVersion;
+use bitcoin::{consensus, Address, EcdsaSighashType, LockTime, Network, PublicKey, Script, Txid};
 use bitcoin_blockchain::locks::SeqNo;
 use bitcoin_scripts::address::{AddressCompat, AddressFormat};
 use bitcoin_scripts::TaprootWitness;
@@ -237,19 +237,33 @@ impl Args {
                 Some(WitnessVersion::V0) if prevout.script_pubkey.is_v0_p2wpkh() => {
                     let mut iter = txin.witness.iter();
                     let Some(sersig) = iter.next() else {
-                        eprintln!("  {}", "invalid witness structure for P2WPK output".bright_red());
+                        eprintln!(
+                            "  {}",
+                            "invalid witness structure for P2WPK output".bright_red()
+                        );
                         continue;
                     };
-                    let Ok(sig) = EcdsaSig::from_slice(sersig) else {
-                        eprintln!("    {} {}", "invalid signature".bright_red(), sersig.to_hex());
+                    let Ok(sig) = EcdsaSighashType::from_slice(sersig) else {
+                        eprintln!(
+                            "    {} {}",
+                            "invalid signature".bright_red(),
+                            sersig.to_hex()
+                        );
                         continue;
                     };
                     let Some(serpk) = iter.next() else {
-                        eprintln!("  {}", "invalid witness structure for P2WPK output".bright_red());
+                        eprintln!(
+                            "  {}",
+                            "invalid witness structure for P2WPK output".bright_red()
+                        );
                         continue;
                     };
                     let Ok(pk) = PublicKey::from_slice(serpk) else {
-                        eprintln!("    {} {}", "invalid public key".bright_red(), serpk.to_hex());
+                        eprintln!(
+                            "    {} {}",
+                            "invalid public key".bright_red(),
+                            serpk.to_hex()
+                        );
                         continue;
                     };
                     println!("  wpkh({pk})");
@@ -290,7 +304,7 @@ impl Args {
                     let mut i = 0;
                     while i < witness.len() {
                         // Signature
-                        if let Ok(sig) = EcdsaSig::from_slice(witness[i]) {
+                        if let Ok(sig) = EcdsaSighashType::from_slice(witness[i]) {
                             println!("  - signature {}", sig.hash_ty.to_string().bright_green());
                             let h = sig.sig.serialize_compact().to_hex();
                             let (r, s) = h.split_at(64);

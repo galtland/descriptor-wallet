@@ -14,11 +14,9 @@
 use std::fmt::{self, Display, Formatter};
 use std::str::FromStr;
 
+use bitcoin::bip32::{self, ChildNumber, DerivationPath, Fingerprint, KeySource, Xpriv, Xpub};
 use bitcoin::secp256k1::{self, Secp256k1, Signing, Verification};
-use bitcoin::util::bip32::{
-    self, ChildNumber, DerivationPath, ExtendedPrivKey, ExtendedPubKey, Fingerprint, KeySource,
-};
-use bitcoin::{OutPoint, XpubIdentifier};
+use bitcoin::{OutPoint, XKeyIdentifier};
 use slip132::FromSlip132;
 
 use crate::{
@@ -27,9 +25,7 @@ use crate::{
 };
 
 /// Errors during tracking acocunt parsing
-#[derive(
-    Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Display, Error, From
-)]
+#[derive(Clone, Eq, PartialEq, Debug, Display, Error, From)]
 #[display(doc_comments)]
 pub enum ParseError {
     /// BIP-32 related errors.
@@ -69,7 +65,7 @@ pub trait DerivePublicKey {
 /// HD wallet account guaranteeing key derivation without access to the
 /// private keys.
 #[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug)]
-#[derive(StrictEncode, StrictDecode)]
+// #[derive(StrictEncode, StrictDecode)]
 pub struct DerivationAccount {
     /// Reference to the extended master public key, if known
     pub master: XpubRef,
@@ -79,7 +75,7 @@ pub struct DerivationAccount {
 
     /// Account-based extended public key at the end of account derivation path
     /// segment
-    pub account_xpub: ExtendedPubKey,
+    pub account_xpub: Xpub,
 
     /// Single-use-seal definition for the revocation of account extended public
     /// key
@@ -110,14 +106,14 @@ impl DerivationAccount {
     /// key
     pub fn with<C: Signing>(
         secp: &Secp256k1<C>,
-        master_id: XpubIdentifier,
-        account_xpriv: ExtendedPrivKey,
+        master_id: XKeyIdentifier,
+        account_xpriv: Xpriv,
         account_path: &[u16],
         terminal_path: impl IntoIterator<Item = TerminalStep>,
     ) -> DerivationAccount {
-        let account_xpub = ExtendedPubKey::from_priv(secp, &account_xpriv);
+        let account_xpub = Xpub::from_priv(secp, &account_xpriv);
         DerivationAccount {
-            master: XpubRef::XpubIdentifier(master_id),
+            master: XpubRef::XKeyIdentifier(master_id),
             account_path: account_path
                 .iter()
                 .copied()
@@ -130,7 +126,9 @@ impl DerivationAccount {
     }
 
     /// Detects if the tracking account is seed-based
-    pub fn seed_based(&self) -> bool { self.master != XpubRef::Unknown }
+    pub fn seed_based(&self) -> bool {
+        self.master != XpubRef::Unknown
+    }
 
     /// Counts number of keys which may be derived using this account
     pub fn keyspace_size(&self) -> usize {
@@ -141,12 +139,16 @@ impl DerivationAccount {
 
     /// Returns fingerprint of the master key, if known
     #[inline]
-    pub fn master_fingerprint(&self) -> Option<Fingerprint> { self.master.fingerprint() }
+    pub fn master_fingerprint(&self) -> Option<Fingerprint> {
+        self.master.fingerprint()
+    }
 
     /// Returns fingerprint of the master key - or, if no master key present, of
     /// the account key
     #[inline]
-    pub fn account_fingerprint(&self) -> Fingerprint { self.account_xpub.fingerprint() }
+    pub fn account_fingerprint(&self) -> Fingerprint {
+        self.account_xpub.fingerprint()
+    }
 
     /// Returns account number, deducing it from the structure of derivation
     /// path and known standards. If the deduction is not possible (for instance
@@ -332,13 +334,13 @@ impl DerivationAccount {
                 for next in split.by_ref() {
                     if let Some((index, xpub_str)) = next.split_once(']') {
                         account.account_path.push(AccountStep::from_str(index)?);
-                        xpub = Some(ExtendedPubKey::from_str(xpub_str)?);
+                        xpub = Some(Xpub::from_str(xpub_str)?);
                         break;
                     }
                     account.account_path.push(AccountStep::from_str(next)?);
                 }
             } else {
-                xpub = Some(ExtendedPubKey::from_str(first)?);
+                xpub = Some(Xpub::from_str(first)?);
             }
         }
 
@@ -408,7 +410,7 @@ impl DerivationAccount {
                     (index, Some(xpub), None, seal, None) => {
                         let branch_index = index.map(HardenedIndex::from_str).transpose()?;
                         let xpub = &xpub[1..xpub.len() - 1]; // Trimming square brackets
-                        let branch_xpub = ExtendedPubKey::from_slip132_str(xpub)?;
+                        let branch_xpub = Xpub::from_slip132_str(xpub)?;
                         let revocation_seal = seal
                             .map(|seal| {
                                 OutPoint::from_str(seal)
@@ -468,17 +470,17 @@ impl miniscript::MiniscriptKey for DerivationAccount {
 
 #[cfg(test)]
 mod test {
-    use bitcoin::util::bip32::ExtendedPubKey;
+    use bitcoin::bip32::Xpub;
 
     use super::*;
 
-    fn xpubs() -> [ExtendedPubKey; 5] {
+    fn xpubs() -> [Xpub; 5] {
         [
-            ExtendedPubKey::from_str("xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8").unwrap(),
-            ExtendedPubKey::from_str("xpub68Gmy5EdvgibQVfPdqkBBCHxA5htiqg55crXYuXoQRKfDBFA1WEjWgP6LHhwBZeNK1VTsfTFUHCdrfp1bgwQ9xv5ski8PX9rL2dZXvgGDnw").unwrap(),
-            ExtendedPubKey::from_str("xpub6ASuArnXKPbfEwhqN6e3mwBcDTgzisQN1wXN9BJcM47sSikHjJf3UFHKkNAWbWMiGj7Wf5uMash7SyYq527Hqck2AxYysAA7xmALppuCkwQ").unwrap(),
-            ExtendedPubKey::from_str("xpub6D4BDPcP2GT577Vvch3R8wDkScZWzQzMMUm3PWbmWvVJrZwQY4VUNgqFJPMM3No2dFDFGTsxxpG5uJh7n7epu4trkrX7x7DogT5Uv6fcLW5").unwrap(),
-            ExtendedPubKey::from_str("xpub6FHa3pjLCk84BayeJxFW2SP4XRrFd1JYnxeLeU8EqN3vDfZmbqBqaGJAyiLjTAwm6ZLRQUMv1ZACTj37sR62cfN7fe5JnJ7dh8zL4fiyLHV").unwrap(),
+            Xpub::from_str("xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8").unwrap(),
+            Xpub::from_str("xpub68Gmy5EdvgibQVfPdqkBBCHxA5htiqg55crXYuXoQRKfDBFA1WEjWgP6LHhwBZeNK1VTsfTFUHCdrfp1bgwQ9xv5ski8PX9rL2dZXvgGDnw").unwrap(),
+            Xpub::from_str("xpub6ASuArnXKPbfEwhqN6e3mwBcDTgzisQN1wXN9BJcM47sSikHjJf3UFHKkNAWbWMiGj7Wf5uMash7SyYq527Hqck2AxYysAA7xmALppuCkwQ").unwrap(),
+            Xpub::from_str("xpub6D4BDPcP2GT577Vvch3R8wDkScZWzQzMMUm3PWbmWvVJrZwQY4VUNgqFJPMM3No2dFDFGTsxxpG5uJh7n7epu4trkrX7x7DogT5Uv6fcLW5").unwrap(),
+            Xpub::from_str("xpub6FHa3pjLCk84BayeJxFW2SP4XRrFd1JYnxeLeU8EqN3vDfZmbqBqaGJAyiLjTAwm6ZLRQUMv1ZACTj37sR62cfN7fe5JnJ7dh8zL4fiyLHV").unwrap(),
         ]
     }
 

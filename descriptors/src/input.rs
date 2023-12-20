@@ -12,16 +12,16 @@
 use core::fmt::{self, Display, Formatter};
 use core::str::FromStr;
 
+use bitcoin::bip32;
+use bitcoin::bip32::Fingerprint;
 use bitcoin::blockdata::transaction::ParseOutPointError;
 use bitcoin::hashes::sha256;
-use bitcoin::util::bip32;
-use bitcoin::util::bip32::Fingerprint;
 use bitcoin::{EcdsaSighashType as SighashType, OutPoint};
 use bitcoin_blockchain::locks::{self, SeqNo};
 use bitcoin_hd::{DerivationSubpath, UnhardenedIndex};
 
 #[derive(Clone, PartialEq, Eq, Debug)]
-#[derive(StrictEncode, StrictDecode)]
+// #[derive(StrictEncode, StrictDecode)]
 pub struct InputDescriptor {
     pub outpoint: OutPoint,
     pub terminal: DerivationSubpath<UnhardenedIndex>,
@@ -68,7 +68,7 @@ pub enum ParseError {
 
     /// invalid hexadecimal P2C tweak representation in input descriptor
     #[from]
-    InvalidTweak(bitcoin::hashes::hex::Error),
+    InvalidTweak(bitcoin::hashes::hex::HexToArrayError),
 
     /// invalid input outpoint
     #[from]

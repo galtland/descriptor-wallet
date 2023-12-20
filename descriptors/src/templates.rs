@@ -22,7 +22,7 @@ use bitcoin_hd::{DerivePatternError, UnhardenedIndex};
 use miniscript::MiniscriptKey;
 #[cfg(feature = "serde")]
 use serde_with::{hex::Hex, As, DisplayFromStr};
-use strict_encoding::{self, StrictDecode, StrictEncode};
+// use strict_encoding::{self, StrictDecode, StrictEncode};
 
 /// Allows creating templates for native bitcoin scripts with embedded
 /// key generator templates. May be useful for creating descriptors in
@@ -34,7 +34,7 @@ use strict_encoding::{self, StrictDecode, StrictEncode};
     serde(crate = "serde_crate", rename = "lowercase")
 )]
 #[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Debug, Hash, Display)]
-#[derive(StrictEncode, StrictDecode)]
+// #[derive(StrictEncode, StrictDecode)]
 pub enum OpcodeTemplate<Pk>
 where
     Pk: MiniscriptKey + StrictEncode + StrictDecode + FromStr,
@@ -83,7 +83,7 @@ where
     serde(crate = "serde_crate", transparent)
 )]
 #[derive(Wrapper, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, From)]
-#[derive(StrictEncode, StrictDecode)]
+// #[derive(StrictEncode, StrictDecode)]
 #[wrap(Index, IndexMut, IndexFull, IndexFrom, IndexTo, IndexInclusive)]
 pub struct ScriptTemplate<Pk>(Vec<OpcodeTemplate<Pk>>)
 where

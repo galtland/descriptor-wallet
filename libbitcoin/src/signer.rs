@@ -19,7 +19,7 @@ use std::slice;
 use std::str::{FromStr, Utf8Error};
 
 use bip39::Mnemonic;
-use bitcoin::util::bip32::{self, DerivationPath, Error, ExtendedPrivKey, ExtendedPubKey};
+use bitcoin::bip32::{self, DerivationPath, Error, Xpriv, Xpub};
 use bitcoin::Network;
 use libc::c_char;
 use rand::RngCore;
@@ -73,7 +73,9 @@ pub enum error_t {
 }
 
 impl Default for error_t {
-    fn default() -> Self { error_t::success }
+    fn default() -> Self {
+        error_t::success
+    }
 }
 
 impl From<bip32::Error> for error_t {
@@ -106,11 +108,14 @@ impl string_result_t {
     pub fn success(data: impl ToString) -> string_result_t {
         let (code, details) = match CString::new(data.to_string()) {
             Ok(s) => (error_t::success, result_details_t { data: s.into_raw() }),
-            Err(err) => (error_t::invalid_result_data, result_details_t {
-                data: CString::new(err.to_string())
-                    .expect("Null byte in string_result_t success code doc comments")
-                    .into_raw(),
-            }),
+            Err(err) => (
+                error_t::invalid_result_data,
+                result_details_t {
+                    data: CString::new(err.to_string())
+                        .expect("Null byte in string_result_t success code doc comments")
+                        .into_raw(),
+                },
+            ),
         };
         string_result_t { code, details }
     }
@@ -126,7 +131,9 @@ impl string_result_t {
         }
     }
 
-    pub fn is_success(&self) -> bool { self.code == error_t::success }
+    pub fn is_success(&self) -> bool {
+        self.code == error_t::success
+    }
 }
 
 impl<E> FromResidual<Result<Infallible, E>> for string_result_t
@@ -134,12 +141,16 @@ where
     E: std::error::Error + Into<error_t>,
 {
     #[inline]
-    fn from_residual(residual: Result<Infallible, E>) -> Self { Self::from(residual.unwrap_err()) }
+    fn from_residual(residual: Result<Infallible, E>) -> Self {
+        Self::from(residual.unwrap_err())
+    }
 }
 
 impl FromResidual<error_t> for string_result_t {
     #[inline]
-    fn from_residual(residual: error_t) -> Self { Self::from(residual) }
+    fn from_residual(residual: error_t) -> Self {
+        Self::from(residual)
+    }
 }
 
 impl Try for string_result_t {
@@ -218,7 +229,9 @@ impl bip39_mnemonic_type {
         }
     }
 
-    pub fn word_len(self) -> usize { (self.byte_len() * 8 + self.byte_len() * 8 / 32) / 11 }
+    pub fn word_len(self) -> usize {
+        (self.byte_len() * 8 + self.byte_len() * 8 / 32) / 11
+    }
 }
 
 #[no_mangle]
@@ -284,7 +297,7 @@ pub unsafe extern "C" fn bip39_master_xpriv(
         }
         seed
     };
-    let mut xpriv = ExtendedPrivKey::new_master(
+    let mut xpriv = Xpriv::new_master(
         if testnet {
             Network::Testnet
         } else {
@@ -316,7 +329,7 @@ pub unsafe extern "C" fn bip32_derive_xpriv(
     derivation: *const c_char,
 ) -> string_result_t {
     let master_cstring = unsafe { CString::from_raw(master) };
-    let mut master = ExtendedPrivKey::from_str(master_cstring.to_str()?)?;
+    let mut master = Xpriv::from_str(master_cstring.to_str()?)?;
 
     let derivation = unsafe { CStr::from_ptr(derivation).to_str()? };
     let derivation = DerivationPath::from_str(derivation)?;
@@ -350,13 +363,13 @@ pub unsafe extern "C" fn bip32_derive_xpub(
     let derivation = unsafe { CStr::from_ptr(derivation).to_str()? };
     let derivation = DerivationPath::from_str(derivation)?;
 
-    if let Ok(mut master) = ExtendedPrivKey::from_str(master_cstring.to_str()?) {
+    if let Ok(mut master) = Xpriv::from_str(master_cstring.to_str()?) {
         let mut xpriv = master.derive_priv(&SECP256K1, &derivation)?;
         if wipe {
             unsafe { master_cstring.wipe() };
         }
 
-        let xpub = ExtendedPubKey::from_priv(&SECP256K1, &xpriv);
+        let xpub = Xpub::from_priv(&SECP256K1, &xpriv);
 
         let ptr1 = master.private_key.as_mut_ptr();
         let ptr2 = xpriv.private_key.as_mut_ptr();
@@ -368,7 +381,7 @@ pub unsafe extern "C" fn bip32_derive_xpub(
         }
         string_result_t::success(&xpub)
     } else {
-        let master = ExtendedPubKey::from_str(master_cstring.to_str()?)?;
+        let master = Xpub::from_str(master_cstring.to_str()?)?;
         let xpub = master.derive_pub(&SECP256K1, &derivation)?;
         string_result_t::success(&xpub)
     }

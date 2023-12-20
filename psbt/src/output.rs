@@ -11,9 +11,8 @@
 
 use std::collections::BTreeMap;
 
-use bitcoin::psbt::TapTree;
-use bitcoin::util::bip32::KeySource;
-use bitcoin::util::taproot::TapLeafHash;
+use bitcoin::bip32::KeySource;
+use bitcoin::taproot::{TapLeafHash, TapTree};
 use bitcoin::{secp256k1, TxOut, XOnlyPublicKey};
 use bitcoin_scripts::{PubkeyScript, RedeemScript, WitnessScript};
 #[cfg(feature = "serde")]
@@ -24,7 +23,7 @@ use crate::v0::OutputV0;
 
 // TODO: Do manual serde implementation to check the deserialized values
 #[derive(Clone, Eq, PartialEq, Debug, Default)]
-#[derive(StrictEncode, StrictDecode)]
+// #[derive(StrictEncode, StrictDecode)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
@@ -87,7 +86,7 @@ impl Output {
     pub fn with(index: usize, v0: OutputV0, txout: TxOut) -> Self {
         Output {
             index,
-            amount: txout.value,
+            amount: txout.value.to_sat(),
             script: txout.script_pubkey.into(),
             redeem_script: v0.redeem_script.map(Into::into),
             witness_script: v0.witness_script.map(Into::into),
@@ -101,18 +100,20 @@ impl Output {
     }
 
     #[inline]
-    pub fn index(&self) -> usize { self.index }
+    pub fn index(&self) -> usize {
+        self.index
+    }
 
     pub fn to_txout(&self) -> TxOut {
         TxOut {
-            value: self.amount,
+            value: bitcoin::Amount::from_sat(self.amount),
             script_pubkey: self.script.clone().into(),
         }
     }
 
     pub fn into_txout(self) -> TxOut {
         TxOut {
-            value: self.amount,
+            value: bitcoin::Amount::from_sat(self.amount),
             script_pubkey: self.script.into(),
         }
     }
@@ -130,7 +131,7 @@ impl Output {
                 unknown: self.unknown,
             },
             TxOut {
-                value: self.amount,
+                value: bitcoin::Amount::from_sat(self.amount),
                 script_pubkey: self.script.into(),
             },
         )

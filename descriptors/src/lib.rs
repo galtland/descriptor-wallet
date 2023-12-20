@@ -22,8 +22,8 @@
 
 #[macro_use]
 extern crate amplify;
-#[macro_use]
-extern crate strict_encoding;
+// #[macro_use]
+// extern crate strict_encoding;
 #[cfg(feature = "miniscript")]
 extern crate miniscript_crate as miniscript;
 #[cfg(feature = "serde")]

@@ -30,8 +30,8 @@ extern crate amplify;
 #[cfg(feature = "serde")]
 #[macro_use]
 extern crate serde_crate as serde;
-#[macro_use]
-extern crate strict_encoding;
+// #[macro_use]
+// extern crate strict_encoding;
 #[cfg(feature = "miniscript")]
 extern crate miniscript_crate as miniscript;
 
@@ -55,9 +55,7 @@ pub use global::Psbt;
 pub use input::Input;
 pub use output::Output;
 pub(crate) mod v0 {
-    pub use bitcoin::psbt::{
-        Input as InputV0, Output as OutputV0, PartiallySignedTransaction as PsbtV0,
-    };
+    pub use bitcoin::psbt::{Input as InputV0, Output as OutputV0, Psbt as PsbtV0};
 }
 pub use p2c::{PSBT_IN_P2C_TWEAK, PSBT_P2C_PREFIX};
 pub use proprietary::{
@@ -66,8 +64,8 @@ pub use proprietary::{
 
 /// Version of the PSBT (V0 stands for BIP174-defined version; V2 - for BIP370).
 #[derive(Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Default)]
-#[derive(StrictEncode, StrictDecode)]
-#[strict_encoding(repr = u32)]
+// #[derive(StrictEncode, StrictDecode)]
+// #[strict_encoding(repr = u32)]
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
